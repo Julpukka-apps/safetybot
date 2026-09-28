@@ -1,0 +1,7 @@
+node_modules
+.next
+data/safetybot-reports.jsonl
+.env
+.env.local
+
+data/
