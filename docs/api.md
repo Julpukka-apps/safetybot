@@ -1,47 +1,77 @@
 # API
 
-Routes live under `src/app/api`. The health check is public. Report, schema, organization, and sync routes use `authorize()` in `src/server/http.server.ts`: `Authorization: Bearer <key>`. A mismatch returns `401` and `{ "error": "Unauthorized" }`.
+Routes live under `src/app/api`. A wrong bearer key returns `401` and `{ "error": "Unauthorized" }`.
 
-The bearer key is the `apiKey` in `data/safetybot-store.json`, shown on Admin → API. A fresh store starts from `DEFAULT_API_KEY` in `src/schema.ts`. Rotate it in the app.
+The bearer key is the SafetyBot API key on Admin → API, stored as `apiKey` in `data/safetybot-store.json`. Rotate it in the app before you expose the host. Do not paste the first-run value into docs.
+
+The host keeps at most 200 reports.
 
 ## Public
 
+No bearer key.
+
 | Method | Path | Behavior |
 | --- | --- | --- |
-| GET | `/api/health` | `{ ok, version, name }` from `src/app/api/health/route.ts` |
-| GET | `/api/auth/session` | Current SSO user, or `user: null` |
-| POST | `/api/auth/signout` | Ends the SSO session |
+| GET | `/api/health` | `{ ok, version, name }` |
+| GET | `/api/auth/session` | `{ user }` or `{ user: null }`. User fields: `name`, `email`, `provider`, `org_id`, `org_path` |
+| POST | `/api/auth/signout` | Ends the sign-in session |
 | GET | `/api/auth/google` | Starts Google sign-in |
 | GET | `/api/auth/google/callback` | Finishes Google sign-in |
 | GET | `/api/auth/microsoft` | Starts Microsoft sign-in |
 | GET | `/api/auth/microsoft/callback` | Finishes Microsoft sign-in |
-| GET | `/api/auth/sso` | Enabled flags. Full client settings only if the bearer key matches |
-| GET | `/api/ai/status` | `{ available }` if `XAI_API_KEY` or `OPENAI_API_KEY` is set on the server |
+| GET | `/api/auth/sso` | Enabled flags and redirect URLs. Full client settings only when the bearer key matches |
+| GET | `/api/ai/status` | `{ available }` when `XAI_API_KEY` or `OPENAI_API_KEY` is set on the server |
 
 ## Bearer required
 
+Send `Authorization: Bearer <SafetyBot API key>`.
+
 | Method | Path | Behavior |
 | --- | --- | --- |
-| GET | `/api/reports` | Query `since`, `case_type`, `org_id`. Returns report rows |
-| POST | `/api/reports` | Stores one report. Returns `{ ok, id, webhook }` with status 201, or 400 |
-| GET | `/api/reports/[id]` | One row, or 404 |
-| DELETE | `/api/reports/[id]` | Removes one row, or 404 |
+| GET | `/api/reports` | Report rows. Query: `since` (ISO time, keep rows at or after it), `case_type` (exact id), `org_id` (exact id) |
+| POST | `/api/reports` | Stores one report. `201` `{ ok, id, webhook }` or `400`. `webhook` is `sent`, `skipped`, or `failed` |
+| GET | `/api/reports/[id]` | One row, or `404` |
+| DELETE | `/api/reports/[id]` | Removes one row, or `404` |
 | GET | `/api/schema` | Current logic object |
 | GET | `/api/organization` | Organization tree |
-| PUT | `/api/organization` | Replaces the tree from JSON or plain text |
+| PUT | `/api/organization` | Replaces the tree. JSON body, or plain text with header `id,name,parent_id,type` |
 | DELETE | `/api/organization` | Clears the tree |
-| POST | `/api/sync` | Writes reports, webhook, organization, and SSO. Writes logic only when `replaceLogic` is true, which Admin save sends. A normal page open does not replace the saved fields |
-| PUT | `/api/auth/sso` | Saves SSO settings |
+| POST | `/api/sync` | Writes webhook, organization, SSO, and reports. Writes logic only when `replaceLogic` is true and `logic` is present. `rotateTo` must match the app's `sb_live_` key shape |
+| PUT | `/api/auth/sso` | Saves sign-in settings |
 
-`POST /api/reports` also calls `postWebhook`. The result is `sent`, `skipped`, or `failed`.
+`POST /api/reports` calls the webhook when a URL is saved. The POST body is the report row. Header `x-safetybot-secret` carries the shared secret. Timeout is 8 seconds. No URL means `skipped`.
 
 ## Model routes
 
-These do not use the bearer key. The browser sends `x-ai-provider`, `x-ai-key`, `x-ai-model`, and `x-ai-base` from the Admin API settings in that browser. If the header key is empty, the server falls back to `XAI_API_KEY` or `OPENAI_API_KEY`.
+These do not use the bearer key. The browser sends `x-ai-provider`, `x-ai-key`, `x-ai-model`, and `x-ai-base`. An empty key falls back to `XAI_API_KEY` for provider `xai` and `OPENAI_API_KEY` for provider `openai`. Azure and compatible calls need the browser key and base URL.
+
+Do not log those headers. They carry the model key.
 
 | Method | Path | Behavior |
 | --- | --- | --- |
-| POST | `/api/ai/extract` | Body `transcript`, `photos` (max 3), `logic`, `language`. Status 503 when no key, 502 on model failure |
-| POST | `/api/ai/transcribe` | Body `audioBase64`, `mime`, `language`, `keyterms` |
+| POST | `/api/ai/extract` | Body: `transcript`, `photos` (max 3), `logic`, `language`. `503` when no key, `502` on model failure. Success: `{ extraction }` |
+| POST | `/api/ai/transcribe` | Body: `audioBase64`, `mime`, `language`, `keyterms`. `503` when no key, `502` on failure. Azure has no speech route here. Success: `{ text }` |
 
-Do not log those headers. They carry the model key.
+## Examples
+
+Health:
+
+```bash
+curl -sS http://127.0.0.1:8082/api/health
+```
+
+List reports:
+
+```bash
+curl -sS "http://127.0.0.1:8082/api/reports?case_type=safety_observation" \
+  -H "Authorization: Bearer $SAFETYBOT_API_KEY"
+```
+
+Schema:
+
+```bash
+curl -sS http://127.0.0.1:8082/api/schema \
+  -H "Authorization: Bearer $SAFETYBOT_API_KEY"
+```
+
+`$SAFETYBOT_API_KEY` is the key shown on Admin → API after you rotate it.

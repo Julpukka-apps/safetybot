@@ -2,21 +2,25 @@
 
 Source: `src/schema.ts`. `defaultLogic()` is the seed. `normalizeLogic()` fills anything a saved logic object omits.
 
-`schema_version` is `1.0.0`. `app_name` is `SafetyBot`.
+`schema_version` is `1.0.0`. `app_name` is `SafetyBot`. `default_language` is `en`.
+
+The seed is a generic construction-site set. Only `description` is required.
 
 ## Case types
 
-Priority order in the seed:
+Ids, in priority order:
 
-| id | Label | Priority |
-| --- | --- | --- |
-| `injury` | Injury | 1 |
-| `near_miss` | Near miss | 2 |
-| `good_practice` | Good practice | 3 |
-| `improvement_idea` | Idea | 4 |
-| `safety_observation` | Observation | 5 |
+| id | Label | Priority | Needs confirm | Hint |
+| --- | --- | --- | --- | --- |
+| `injury` | Injury | 1 | yes | Person was hurt |
+| `near_miss` | Near miss | 2 | no | Something happened, nobody hurt |
+| `good_practice` | Good practice | 3 | no | Praising something done well |
+| `improvement_idea` | Idea | 4 | no | Proposal, no live hazard |
+| `safety_observation` | Observation | 5 | no | Hazard or risk seen |
 
-## Logic fields the admin can edit
+Each case type also has `enabled`.
+
+## Logic the admin can edit
 
 - `classification_rules`
 - `description_template`
@@ -26,14 +30,56 @@ Priority order in the seed:
 - `case_types`
 - `fields`
 
-## Report field keys
+## Field shape
 
-The seed is a construction-site set. Only `description` is required.
+| Property | Values |
+| --- | --- |
+| `type` | `text`, `textarea`, `enum`, `boolean`, `datetime`, `number` |
+| `extract_from` | `speech`, `photo`, `both`, `none` |
+| `show_if` | `null`, or `{ field, op, value }` |
+| `show_if.op` | `eq`, `neq`, `in`, `not_in` |
 
-`description`, `immediate_action`, `site`, `area`, `activity`, `hazard`, `who`, `company`, `incident_datetime`, `what_happened`, `what_could_have_happened`, `potential_severity`, `injured_role`, `severity`, `body_parts`, `nature_of_injury`, `what_was_done_well`, `current_pain`, `proposed_change`, `expected_benefit`.
+`extract_from: none` is stored but not sent to the model. `show_if` hides the field until the condition matches. `case_type` is a valid `show_if.field` even though it is not a report field key.
 
-There is no elevator, escalator, door, end-user, or precise-location field. `company` shows only when `who` is Subcontractor. Case-specific fields show only for that case.
+## Seed fields
 
-A stored report also carries `id`, `case_type`, `created_at`, `photos`, `transcript`, `language`, `org_id`, `org_name`, and `org_path`. `reportToRow()` in `src/schema.ts` is what `GET /api/reports` returns.
+| key | label | type | required | extract_from | show_if |
+| --- | --- | --- | --- | --- | --- |
+| `description` | Description | textarea | yes | both | |
+| `immediate_action` | Immediate action | text | no | both | |
+| `site` | Site | text | no | both | |
+| `area` | Area | text | no | both | |
+| `activity` | Activity | text | no | both | |
+| `hazard` | Hazard | enum | no | both | |
+| `who` | Who | enum | no | both | |
+| `company` | Company | text | no | speech | `who` eq `Subcontractor` |
+| `incident_datetime` | When | datetime | no | none | default `now` |
+| `what_happened` | What happened | textarea | no | both | `case_type` eq `near_miss` |
+| `what_could_have_happened` | What could have happened | textarea | no | both | `case_type` eq `near_miss` |
+| `potential_severity` | Potential severity | enum | no | both | `case_type` eq `near_miss` |
+| `injured_role` | Injured person | text | no | both | `case_type` eq `injury` |
+| `severity` | Severity | enum | no | both | `case_type` eq `injury` |
+| `body_parts` | Body parts | text | no | both | `case_type` eq `injury` |
+| `nature_of_injury` | Nature of injury | text | no | both | `case_type` eq `injury` |
+| `what_was_done_well` | What was done well | textarea | no | both | `case_type` eq `good_practice` |
+| `current_pain` | Current pain | textarea | no | speech | `case_type` eq `improvement_idea` |
+| `proposed_change` | Proposed change | textarea | no | speech | `case_type` eq `improvement_idea` |
+| `expected_benefit` | Expected benefit | textarea | no | speech | `case_type` eq `improvement_idea` |
 
-`extract_from` on a field is `speech`, `photo`, `both`, or `none`.
+`hazard` enums: Fall from height, Falling object, Collapse, Excavation, Electrical, Fire, Chemical, Slip or trip, Struck by, Caught in, Housekeeping, Other.
+
+`who` enums: Worker, Subcontractor, Visitor, Public.
+
+`potential_severity` enums: `minor`, `moderate`, `serious`, `fatal`.
+
+`severity` enums: `first_aid`, `medical_treatment`, `restricted_work`, `lost_time`, `fatality`.
+
+UI packs still have labels for older keys such as equipment, precise location, and business unit. Those keys are not in `defaultLogic()`. Do not document them as seed fields.
+
+## Report row
+
+`GET /api/reports` returns `reportToRow()`. Fixed columns, then one column per current field:
+
+`id`, `created_at`, `case_type`, `case_label`, `confidence`, `language`, `source`, `transcript`, `first_line`, `photo_count`, `org_id`, `org_name`, `org_path`, `reporter_email`, `reporter_name`.
+
+`source` is `grok` or `demo`. Photos are not in the row. `photo_count` is the number of photos.
