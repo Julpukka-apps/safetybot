@@ -238,6 +238,10 @@
   font-size: 22px;
 }
 
+.capture-more {
+  margin-top: 36px;
+}
+
 .photo-bar {
   display: flex;
   align-items: center;

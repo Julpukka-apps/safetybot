@@ -192,29 +192,31 @@ export function Capture() {
                 {transcript ? <p className="capture-note">{transcript}</p> : null}
                 {error ? <p className="capture-note">{t(error)}</p> : null}
               </div>
-              <button
-                type="button"
-                className="photo-bar"
-                disabled={photos.length >= 3 || phase === "writing"}
-                onClick={() => fileRef.current?.click()}
-              >
-                <Camera size={36} />
-                {t("addPhoto")}
-                {photos.length > 0 ? <span className="photo-badge">{photos.length}/3</span> : null}
-              </button>
-              <input
-                ref={fileRef}
-                className="sr-only"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                multiple
-                onChange={(event) => void onPhotos(event.target.files)}
-              />
-              <p className="photo-caption">{t("photoCap")}</p>
-              <button type="button" className="type-link" onClick={() => setTyping(true)}>
-                {t("typeInstead")}
-              </button>
+              <div className="capture-more">
+                <button
+                  type="button"
+                  className="photo-bar"
+                  disabled={photos.length >= 3 || phase === "writing"}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <Camera size={36} />
+                  {t("addPhoto")}
+                  {photos.length > 0 ? <span className="photo-badge">{photos.length}/3</span> : null}
+                </button>
+                <input
+                  ref={fileRef}
+                  className="sr-only"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  multiple
+                  onChange={(event) => void onPhotos(event.target.files)}
+                />
+                <p className="photo-caption">{t("photoCap")}</p>
+                <button type="button" className="type-link" onClick={() => setTyping(true)}>
+                  {t("typeInstead")}
+                </button>
+              </div>
             </>
           )}
         </div>
