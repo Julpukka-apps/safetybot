@@ -1,3 +1,5 @@
+"use client";
+
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { LANGUAGES } from "@/schema";
 import { extraPacks } from "@/locale-rest";
@@ -578,16 +580,17 @@ export function activeLanguage(language: string): string {
   return uiLanguage(language);
 }
 
+function savedLanguage(): string | null {
+  if (typeof window === "undefined") return null;
+  const saved = localStorage.getItem(LANG_KEY) || sessionStorage.getItem(LANG_KEY);
+  return saved && LANGUAGES.some((item) => item.id === saved) ? saved : null;
+}
+
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState("en");
 
   useEffect(() => {
-    const saved = sessionStorage.getItem(LANG_KEY);
-    if (saved && LANGUAGES.some((item) => item.id === saved)) {
-      setLanguageState(saved);
-      return;
-    }
-    setLanguageState("auto");
+    setLanguageState(savedLanguage() || "auto");
   }, []);
 
   useEffect(() => {
@@ -603,7 +606,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     return {
       language,
       setLanguage: (id: string) => {
+        if (!LANGUAGES.some((item) => item.id === id)) return;
         setLanguageState(id);
+        localStorage.setItem(LANG_KEY, id);
         sessionStorage.setItem(LANG_KEY, id);
       },
       t,
