@@ -1,6 +1,6 @@
 # Contributing
 
-SafetyBot is an early preview (v0.1.6). The repository stays private until the owner publishes it.
+SafetyBot is an early preview (v0.1.6).
 
 ## Run
 
@@ -15,7 +15,7 @@ Dev server: http://127.0.0.1:8082
 
 ## Rules
 
-1. Do not commit `.env`, `.env.local`, `data/`, credentials, real reports, or real photos.
+1. Do not commit `.env`, `.env.local`, `data/`, credentials, real reports, or real photos. Do not put secrets in issues or pull requests.
 2. Screenshots in `docs/screenshots/` use dummy text only. No API keys and no named people.
 3. Prefer Admin → Logic for new fields and case types. Change React only when the schema cannot express it.
 4. Keep worker capture simple: one primary action (hold to talk). Camera is secondary.

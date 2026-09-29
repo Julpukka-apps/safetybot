@@ -1,6 +1,6 @@
 # SafetyBot
 
-**Status:** early preview (v0.1.6). The product is still moving. This repository is private until the owner publishes it.
+**Status:** early preview (v0.1.6). The product is still moving.
 
 SafetyBot is a small web app for field safety reports. A worker holds one button and speaks, adds up to three photos, or types a note. The app classifies the case, writes a short description, and fills only the fields the current schema asks for. An administrator can change those fields — and what the model should take from speech versus a photo — without shipping a new build.
 
@@ -65,7 +65,7 @@ npm run dev
 Open [http://127.0.0.1:8082](http://127.0.0.1:8082).
 
 1. On `/`, type a dummy note such as `Oil on the scaffold. I wiped it.` and send it. You should land on a draft with no model key.
-2. Open `/admin`. The page shows the first-run username and password until you replace them. Sign in, then set a new password of at least 8 characters. The first-run password then stops working in that browser. Change it before anyone else can open `/admin`.
+2. Open `/admin`. The page shows the first-run username and password until you replace them. Sign in, then set a new password of at least 8 characters. The first-run password then stops working in that browser. Change both the admin password and the SafetyBot API key on first boot, before anyone else can open `/admin`.
 3. Admin → API: paste a model key if you want live speech and photo reading. The key stays in this browser unless you also set a server fallback in `.env.local`.
 4. Admin → Logic: press Save. The next worker draft uses that form. Opening the worker page does not put the old fields back.
 
@@ -187,7 +187,7 @@ curl -sS http://127.0.0.1:8082/api/reports \
   -H "Authorization: Bearer $SAFETYBOT_API_KEY"
 ```
 
-Full route list: [docs/api.md](docs/api.md). How the pages call those routes: [docs/architecture.md](docs/architecture.md). Offline queue: [docs/offline.md](docs/offline.md).
+Full route list: [docs/api.md](docs/api.md). How the pages call those routes: [docs/architecture.md](docs/architecture.md). Offline queue: [docs/offline.md](docs/offline.md). Put SafetyBot in another tool: [docs/embed.md](docs/embed.md). Work-account sign-in: [docs/microsoft.md](docs/microsoft.md).
 
 ## Self-host
 

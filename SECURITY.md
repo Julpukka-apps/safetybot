@@ -1,17 +1,16 @@
 # Security
 
-This repository is private. The app is an early preview (v0.1.6).
+SafetyBot is an early preview (v0.1.6).
 
 ## Reporting
 
-Tell the owner directly. Do not open a public issue. Do not put API keys, passwords, report text, or photos in a commit, issue, or chat log.
+Open a GitHub issue for a bug that does not involve a secret. Email secrets and passwords to the Julpukka-apps owner. Do not paste API keys, passwords, report text, or photos in an issue, a pull request, a commit, or a chat log.
 
 ## Secrets
 
 - Model keys belong in the browser (Admin → API) or in an uncommitted `.env.local`. The server env names the code reads are `XAI_API_KEY` and `OPENAI_API_KEY`.
-- The SafetyBot API key is the bearer token for reports, schema, organization, and sync. Rotate it on Admin → API before you expose a host.
+- Rotate the admin password and the SafetyBot API key before you expose a host. Change both on first boot. The first-run values stay in `src/schema.ts` so a clone can sign in. Do not print them in docs, issues, or screenshots.
 - `data/safetybot-store.json` and `data/safetybot-reports.jsonl` are local. They are gitignored. Do not add them.
-- The first-run admin password and the demo API key are in `src/schema.ts` so a first run can sign in. Change both in the running app. Do not print them in docs. History was not rewritten.
 
 ## Auth
 

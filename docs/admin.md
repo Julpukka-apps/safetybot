@@ -1,6 +1,6 @@
 # Admin
 
-URL: `/admin`. Live preview: https://safetybot.julpukka.com/admin
+URL: `/admin`.
 
 The page starts at sign-in. Until the password has been changed, the page shows the first-run username and password. After that sign-in it asks for a new password of at least 8 characters. The first-run password then stops working in that browser. Change it before you expose the host. Do not copy that password into docs, issues, or screenshots.
 

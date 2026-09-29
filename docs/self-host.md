@@ -1,8 +1,6 @@
 # Self-host SafetyBot
 
-This is the path for someone who cloned the repo and wants their own instance. The live preview at https://safetybot.julpukka.com is the owner's demo, not your data.
-
-The repository is private. You need access to https://github.com/Julpukka-apps/safetybot before `git clone` works.
+This is the path for someone who cloned the repo and wants their own instance. Your data stays on the machine you run.
 
 ## 1. Install
 
@@ -33,9 +31,7 @@ Without a model key you can still type a note and walk the screens. That is demo
 
 Open `/admin`. The page shows the first-run username and password until you change them. Sign in, then set a new password of at least 8 characters. After that the first-run password stops working in that browser.
 
-Do that before anyone else can open `/admin`.
-
-Also open Admin → API and rotate the SafetyBot API key. The shipped demo key is in source and must not stay on a shared host. Do not copy it into a ticket, a chat, or this file.
+Change both the admin password and the SafetyBot API key on first boot, before anyone else can open `/admin`. Rotate the API key on Admin → API. The shipped demo key is in source and must not stay on a shared host. Do not copy it into a ticket, a chat, or this file.
 
 ## 4. Model key (optional)
 
@@ -96,7 +92,7 @@ Optional webhook: set the URL on Admin → API. Each submit POSTs the report row
 
 ## 7. Sign-in (optional)
 
-Admin → Access can require Microsoft Entra or Google before a worker submits. Register these callbacks on that provider:
+Admin → Access can require Microsoft Entra or Google before a worker submits. Details: [microsoft.md](microsoft.md). Register these callbacks on that provider:
 
 - `{origin}/api/auth/microsoft/callback`
 - `{origin}/api/auth/google/callback`

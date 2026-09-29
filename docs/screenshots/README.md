@@ -1,6 +1,6 @@
 # Screenshots
 
-Live UI captures. Dummy hazard copy only. No faces and no API keys.
+UI captures. Dummy hazard copy only. No faces, no API keys, and no live host name.
 
 | File | Screen |
 | --- | --- |
