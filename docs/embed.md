@@ -1,192 +1,177 @@
-# Embed SafetyBot in a company tool
+# Put SafetyBot inside a company tool
 
-How a company can put SafetyBot inside a technician app, a work-order system, or a portal — and still send cases to their own safety reporting system.
+A technician app does not need to reinvent hold-to-talk. It needs a safety button, then a way for the official EHS system to receive the case.
 
-SafetyBot is a small website (`/`, `/draft`, `/done`) plus an HTTP API. It is not an npm widget today. Pick a strategy by how much of *their* UI they want to keep.
+SafetyBot is a website (`/`, `/draft`, `/done`) plus a small HTTP API. There is no npm widget today. Pick one of the five strategies below. Most companies should start at **1**.
 
-The data path is the same in every strategy. See [api.md](api.md) and [microsoft.md](microsoft.md).
+License is [MIT](../LICENSE). Taking the code (strategy 5) is allowed. You then own the fork.
 
 ```
-Technician tool  --opens or hosts-->  SafetyBot UI or API
-                                          |
-                                          |→ webhook POST  → EHS
-                                          |→ GET /api/reports?since=…
+Technician tool                  SafetyBot host                 EHS / safety system
+┌────────────────┐            ┌────────────────┐           ┌────────────────┐
+│ Report safety   │  open / API   │ mic, photo,     │  webhook   │ official case   │
+│ (their screens) │ ──────────→ │ draft, submit   │ ───────→ │ file            │
+└────────────────┘            └────────────────┘           └────────────────┘
 ```
 
-The SafetyBot host keeps at most 200 reports. The company system must copy each case out.
+The host keeps at most 200 reports. Copy each case out. See [microsoft.md](microsoft.md) and [api.md](api.md).
 
 ## Choose a strategy
 
-| # | Strategy | Effort | When to use |
-| --- | --- | --- | --- |
-| 1 | Button that opens SafetyBot | Hours | Default. Almost every technician app |
-| 2 | In-app browser / WebView | Days | Native Android / iOS field tool |
-| 3 | iframe on an intranet page | Days–a week | Desk portal, typing and photos |
-| 4 | Their screens, SafetyBot API | Weeks | Strong existing design system |
-| 5 | Take the code (fork) | Weeks–ongoing | They must own pixels, data residency, or the backlog |
+| # | Strategy | Effort | You change SafetyBot? | Looks like their app? |
+| --- | --- | --- | --- | --- |
+| 1 | Button opens SafetyBot | Hours | No | No — full SafetyBot screen |
+| 2 | Native WebView | Days | Maybe query flags | Almost — their chrome, our mic |
+| 3 | iframe on an intranet page | Days | Frame-ancestors later | Panel inside their page |
+| 4 | Their UI, SafetyBot APIs | Weeks | Harden AI routes | Yes |
+| 5 | Take the code (fork) | Weeks–months | You own the fork | Yes |
 
-Start at 1 unless there is a hard rule that the mic must sit inside their layout.
+Data to EHS is the same in every row: webhook on Submit and/or `GET /api/reports`.
 
----
+## 1. Button that opens SafetyBot (start here)
 
-## 1. Button that opens SafetyBot
-
-The company hosts one SafetyBot instance. The technician tool adds one action.
+Add one control to the technician tool:
 
 ```
-Report a safety case → https://safety.example.com/
+Report a safety case → https://safety.company.com/
 ```
 
-Optional query string (add these flags in a later small change if you need them): site / `org_id`, language, a return URL after `/done`.
+Open it in the system browser, a new tab, or an in-app browser. The worker uses hold-to-talk, photos, and `/draft` as usual. Submit already posts the webhook and stores the row.
 
-What they configure on SafetyBot:
+Optional query string later (not built yet — small change):
 
-- Entra sign-in if only company accounts may file
-- Admin → API webhook to the EHS inbound URL
-- Rotated SafetyBot API key for the pull job
+```
+https://safety.company.com/?org_id=site-12&lang=fi&return=https://tech.company.com/job/441
+```
 
-The technician app never sees the draft JSON. Submit already fires the webhook. A scheduled `GET /api/reports?since=` catches missed posts.
+Do this when you want production next week. No embed SDK required.
 
-This is the strategy to ship first.
+## 2. WebView in the technician app
 
----
+Android and many iOS in-app browsers can load the SafetyBot origin full screen.
 
-## 2. WebView in a native technician app
+Need:
 
-Same hosted SafetyBot, shown inside the existing Android or iOS shell.
+- `https://` (mic and camera fail on plain HTTP)
+- Native permission prompts for microphone and camera, then forwarded to the WebView
+- Cookies enabled if Entra sign-in is on
+- First visit online so the service worker can cache the shell ([offline.md](offline.md))
 
-Needs:
+Do not wrap `/admin` in the technician WebView. Point only at `/`.
 
-- `https://` (mic and camera will not start on plain HTTP)
-- Native permission prompts for microphone and camera, forwarded to the WebView
-- Cookies enabled so Entra sign-in can complete (top-level WebView, not a locked iframe)
-- First open while online so the PWA shell caches; offline queue then works on that origin
-
-iOS WKWebView is stricter than Chrome Custom Tabs. If hold-to-talk fails, fall back to strategy 1 (system browser) for the report step only.
-
-On submit, the WebView can stay open on `/done`, or the native app can close the sheet when the URL becomes `/done`.
-
----
+SSO works here better than in an iframe because the view is top-level.
 
 ## 3. iframe on a company page
 
 Possible. Fragile on phones.
 
-The app does not set `X-Frame-Options` today, so a same-company iframe of `/` can render. Still required:
+```html
+<iframe
+  src="https://safety.company.com/"
+  allow="microphone; camera"
+  title="SafetyBot"
+></iframe>
+```
 
-- Parent page is HTTPS
-- Parent sends `Permissions-Policy` that allows `microphone` and `camera` for the SafetyBot origin
-- Allowlist the parent with `Content-Security-Policy: frame-ancestors https://tools.example.com` (add this before production embed)
-- Do **not** expect Entra login inside the iframe. Microsoft sign-in pages block framing. Sign in in a popup or top-level window, then reload the frame
-- Offline IndexedDB belongs to the iframe origin. It does not share a queue with the standalone PWA on the same phone
+The parent page must send Permissions-Policy that allows mic and camera for the SafetyBot origin. Add `Content-Security-Policy: frame-ancestors https://tech.company.com` on the SafetyBot host before you expose this (not set today).
 
-Use iframe for a desktop work-order screen where people mostly type or attach a photo. Do not promise glove-friendly hold-to-talk inside a third-party iframe on iPhone.
+Entra login inside a third-party iframe often fails (`SameSite` cookies). Use a popup sign-in, or require sign-in before the iframe opens.
 
-A later small feature: `postMessage` on submit `{ type: "safetybot:submitted", id }` so the parent can close the panel.
+Safari hold-to-talk inside an iframe is the usual failure. Offline IndexedDB belongs to the iframe origin, not the parent app. Prefer strategy 1 or 2 for site phones.
 
----
+## 4. Keep their screens, call the APIs
 
-## 4. Their UI, SafetyBot as the engine
+Use this when the technician tool already has notes and photos and cannot look like SafetyBot.
 
-The technician tool already has notes, photos, and job context. They skip our screens.
+Flow:
 
-1. Collect text and up to 3 photos (and optional audio) in *their* app.
-2. Call the company SafetyBot host:
-   - `POST /api/ai/transcribe` if they have audio
-   - `POST /api/ai/extract` with transcript, photos, language, and current logic from `GET /api/schema`
-   - `POST /api/reports` with the filled row and `Authorization: Bearer`
-3. Show the returned fields in their form. Worker confirms. Then POST.
-4. Webhook or pull into EHS as usual.
+1. Their app collects text and up to 3 photos (and optional audio).
+2. `POST /api/ai/transcribe` if there is audio.
+3. `POST /api/ai/extract` with transcript, photos, and the current `GET /api/schema` logic.
+4. Show the returned fields in *their* form.
+5. `POST /api/reports` with `Authorization: Bearer`.
+6. EHS receives the webhook or polls `GET /api/reports?since=…`.
 
-Today the model routes also accept `x-ai-*` headers from the browser. On a company host put the model key on the **server** and do not ship Foundry keys inside the technician binary.
+Today the AI routes read `x-ai-provider` / `x-ai-key` from the browser and fall back to server env. On a company host, keep the model key on the server. Do not ship the Foundry key inside the technician binary.
 
-This strategy is field-mapping work, not pixel embedding.
-
----
+This is not an official SDK. It is HTTP. Schema changes in Admin → Logic still apply if you fetch `/api/schema` instead of hard-coding fields.
 
 ## 5. Take the code
 
-License is [MIT](../LICENSE). A company may clone, fork, rename, restyle, and run their own host. That is the “just take the code” path.
+MIT. Fork the repo and run your own host, or lift the worker screens into the technician codebase.
 
-### What they get
-
-| Path | Role |
-| --- | --- |
-| `src/Capture.tsx` | Hold to talk, photos, type |
-| `src/Draft.tsx` | Check and submit |
-| `src/Done.tsx` | Confirmation |
-| `src/Admin*.tsx` | Logic, API, Reports, Access |
-| `src/schema.ts` | Case types, fields, `reportToRow` |
-| `src/i18n.tsx` + locale packs | UI languages |
-| `src/outbox.ts` | Offline queue |
-| `src/app/api/**` | Health, reports, schema, auth, AI |
-| `src/server/**` | Store, webhook, bearer check |
-
-Stack: Next.js 16, React 19, Node 20, port 8082.
-
-### How to take it
+### 5a. Fork and host your own SafetyBot
 
 ```bash
 git clone https://github.com/Julpukka-apps/safetybot.git
 cd safetybot
 npm install
-cp .env.example .env.local
-# set server model keys if used; never commit this file
 npm run dev
 ```
 
-Then either:
+Change admin password, rotate the API key, point Admin → API at the company model, turn on Entra, set the webhook to EHS. The technician tool still uses strategy 1 or 2 against *your* hostname.
 
-**A. Fork and host as-is**  
-Change the wordmark, colors in `src/app/globals.css`, and the Entra redirect. Keep Admin → Logic as the form editor. This is still strategy 1, with their branding.
+This is the clean take-the-code path. You get updates by merging upstream when you want them. You do not copy React files into two apps.
 
-**B. Vendor the worker screens into their React app**  
-Copy `Capture.tsx`, `Draft.tsx`, `schema.ts`, `storage.ts`, `xai.ts`, `outbox.ts`, and the i18n files. They must also copy or re-implement the `/api/*` routes. The offline database name is `safetybot_outbox_v1` — change it if two apps share an origin. This is a fork. They own merges from upstream.
+### 5b. Copy worker screens into their React app
 
-**C. Keep our host, restyle only**  
-If they only need a logo and primary color, stay on A. Do not copy files into a second repo unless they will staff it.
+The worker UI is:
 
-### Rules when they take the code
+| File | Role |
+| --- | --- |
+| `src/Capture.tsx` | Hold to talk, photos, type |
+| `src/Draft.tsx` | Check fields, submit |
+| `src/Done.tsx` | Confirmation |
+| `src/schema.ts` | Case types and fields |
+| `src/xai.ts` | `resizeImage`, `transcribeSpeech`, `extractReport` |
+| `src/storage.ts` | Local draft and logic |
+| `src/outbox.ts` / flush | Offline queue |
+| `src/i18n.tsx` + locale packs | Languages |
+| `src/app/api/**` | Reports, schema, AI, auth |
 
-- Rotate admin password and the SafetyBot API key before the host is reachable.
-- Do not commit `.env.local`, `data/`, or model keys.
-- Point webhook + pull at the EHS system on day one. 200-row buffer.
-- Keep Injury confirm. Do not auto-POST from their wrapper.
-- If they merge upstream later, treat `src/schema.ts` defaults and Admin Logic as product config, not as their EHS schema. Map in the integration layer.
-- MIT requires keeping the copyright notice. They may rebrand the UI.
+Copying only `Capture.tsx` is not enough. You will also pull the API routes or re-point those functions at a hosted SafetyBot. You then own CSS, offline, and schema drift.
 
-### What taking the code does not remove
+Do this only if a single React monorepo is a hard requirement. Prefer 5a.
 
-They still need a Node host, HTTPS, a model key or demo mode, and an EHS connector. Copying `Capture.tsx` into a Java or .NET technician client is not a port. Use strategy 2 or 4 for those stacks.
+### 5c. What to change first on a fork
 
----
+- First-run admin password and demo API key (do not ship the source defaults).
+- Company hostname and HTTPS proxy ([self-host.md](self-host.md)).
+- Admin → Logic for *their* case types, not the seed construction fields if they differ.
+- Admin → API provider (Azure Foundry is the usual Microsoft tenant).
+- Webhook URL + secret toward EHS.
+- Entra redirect `https://your-host/api/auth/microsoft/callback`.
 
-## Data out (all strategies)
+Keep `/admin` off the technician shell.
+
+## Data out (every strategy)
 
 ```bash
-export ORIGIN=https://safety.example.com
+export ORIGIN=https://safety.company.com
 export SAFETYBOT_API_KEY='rotated key from Admin → API'
 
-curl -sS "$ORIGIN/api/health"
-curl -sS "$ORIGIN/api/schema" -H "Authorization: Bearer $SAFETYBOT_API_KEY"
 curl -sS "$ORIGIN/api/reports?since=2026-09-01T00:00:00.000Z" \
   -H "Authorization: Bearer $SAFETYBOT_API_KEY"
 ```
 
-Webhook: Admin → API URL + shared secret. SafetyBot POSTs one flattened row, header `x-safetybot-secret`, 8 second timeout.
+Webhook: Admin → API URL. Each Submit POSTs the flattened row with header `x-safetybot-secret`. Full field list: [api.md](api.md). Microsoft landing: [microsoft.md](microsoft.md).
 
-List rows include `id`, `case_type`, field columns, `reporter_email`, `org_id`. They include `photo_count`, not the JPEG bytes.
+The technician app does not need to talk to EHS if the webhook or the pull job is on.
 
----
+## Small SafetyBot changes that help embed
 
-## Small upgrades if a company asks for embed next
+Not built yet. Useful if a company asks:
 
-These are not built yet. They are the right next patches if strategy 2 or 3 becomes common:
+- `?org_id=` `?lang=` `?return=` on `/`
+- `frame-ancestors` allowlist
+- `postMessage` on submit: `{ type: "safetybot:submitted", id }` so the parent can close the panel
+- Embed chrome: hide the Admin gear on `/` when `?embed=1`
 
-1. `?org_id=` and `?lang=` on `/`
-2. `?return=` after `/done`
-3. `?embed=1` hides the Admin gear and tightens padding
-4. `frame-ancestors` allowlist
-5. `postMessage` on successful submit
+Those are days of work. They are not required to go live with strategy 1.
 
-Until those exist, strategy 1 plus the API is enough to go live inside a company tool.
+## Recommendation
+
+1. Company hosts SafetyBot (fork or clone).
+2. Technician tool adds **Report safety** → that host.
+3. Webhook + `since` pull into EHS.
+4. Only then consider iframe, API-only UI, or copying React files.
