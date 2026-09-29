@@ -4,6 +4,8 @@
 
 SafetyBot is a small web app for field safety reports. A worker holds one button and speaks, adds up to three photos, or types a note. The app classifies the case, writes a short description, and fills only the fields the current schema asks for. An administrator can change those fields — and what the model should take from speech versus a photo — without shipping a new build.
 
+Submitted reports leave through a webhook or `GET /api/reports`. Any safety reporting system that can import cases over an API can take them. SafetyBot is the worker screen, not the official record.
+
 It is a reporting interface. It is not a medical, legal, or certified incident system.
 
 ## Screenshots
@@ -45,6 +47,10 @@ Default case types: Injury, Near miss, Good practice, Idea, Observation.
 
 AI is optional. The default speech model is Grok Voice (`grok-voice-transcribe-2.0`). The default extract model is Grok (`grok-4.6`). Admin → API can also use OpenAI, Azure, or another OpenAI-compatible chat endpoint. With no model key the UI still runs. Type a note and the app builds a demo draft.
 
+`/api/ai/transcribe` uses Grok Voice or OpenAI-style speech-to-text. It does **not** call Azure Speech. Azure on Admin → API is for extract, not for hold-to-talk.
+
+This host keeps **at most 200 reports**. Copy cases out with the webhook or `GET /api/reports` into your own system.
+
 ## Requirements
 
 - Node.js 20 or newer
@@ -69,6 +75,8 @@ Open [http://127.0.0.1:8082](http://127.0.0.1:8082).
 3. Admin → API: paste a model key if you want live speech and photo reading. The key stays in this browser unless you also set a server fallback in `.env.local`.
 4. Admin → Logic: press Save. The next worker draft uses that form. Opening the worker page does not put the old fields back.
 
+How to use every admin tab: [docs/admin.md](docs/admin.md). Stuck: [docs/troubleshooting.md](docs/troubleshooting.md).
+
 Production on the same machine:
 
 ```bash
@@ -87,7 +95,13 @@ npm start
 
 A fresh install starts with a demo SafetyBot API key. Rotate it on Admin → API before you expose the host. Do not copy that demo value into docs or issues.
 
-Copy `.env.example` to `.env.local` only if you want a server-side model key. Most people paste the model key in Admin → API instead. Do not commit `.env`, `.env.local`, or `data/`.
+Where to get a **model** key:
+
+- xAI / Grok — [console.x.ai](https://console.x.ai)
+- OpenAI — [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- Azure OpenAI / Foundry — your company portal. Paste deployment name and chat-completions URL on Admin → API.
+
+Copy `.env.example` to `.env.local` only if you want a server-side Grok or OpenAI key. Most people paste the model key in Admin → API instead. Do not commit `.env`, `.env.local`, or `data/`.
 
 ## What it costs
 
@@ -106,7 +120,7 @@ AI cost at **200,000 reports / year**, half spoken (25 seconds each) and half on
 | OpenAI Whisper + GPT-4.1 | $250 | $1,200 | **$1,450** | $0.0073 | $121 |
 | Azure Speech real-time + Azure GPT-4.1 | $694 | $1,200 | **$1,890** | $0.0095 | $158 |
 
-Speech is cheap on xAI REST and on Azure **batch**. Azure **real-time** Speech ($1/hour) is what makes a Microsoft stack expensive. Pick Azure when you need a Microsoft tenant or a data zone, not because the tokens are cheaper.
+Speech is cheap on xAI REST and on Azure **batch**. Azure **real-time** Speech ($1/hour) is what makes a Microsoft stack expensive. Pick Azure when you need a Microsoft tenant or a data zone, not because the tokens are cheaper. The Azure Speech cost rows assume a Speech adapter; this repo's hold-to-talk route does not call Azure Speech yet.
 
 Two photos on every picture case, or 45-second voice clips, moves the year by a few hundred dollars — still not the dominant cost. Vendor list prices change; treat this as an order-of-magnitude guide.
 
@@ -116,7 +130,7 @@ Two photos on every picture case, or 45-second voice clips, moves the year by a 
 | --- | --- | --- |
 | Browser | `localStorage` | Draft, logic cache, language, model key in this browser |
 | Host | `data/safetybot-store.json` | Schema, API key, organization, sign-in settings |
-| Host | `data/safetybot-reports.jsonl` | Submitted reports |
+| Host | `data/safetybot-reports.jsonl` | Submitted reports (max 200) |
 
 `data/` is gitignored. In production, keep that directory on a persistent disk.
 
@@ -134,7 +148,7 @@ The queue lives in IndexedDB on the phone, not on the server and not in git. Ful
 
 Admin → Logic is the product configuration. Save writes the browser store and `POST /api/sync`. The next extract call uses that schema. Prefer adding a field here instead of editing React.
 
-Details: [docs/admin.md](docs/admin.md), [docs/schema.md](docs/schema.md).
+Admin user guide: [docs/admin.md](docs/admin.md). Field shapes: [docs/schema.md](docs/schema.md). Stuck: [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Languages
 
@@ -187,7 +201,9 @@ curl -sS http://127.0.0.1:8082/api/reports \
   -H "Authorization: Bearer $SAFETYBOT_API_KEY"
 ```
 
-Full route list: [docs/api.md](docs/api.md). How the pages call those routes: [docs/architecture.md](docs/architecture.md). Offline queue: [docs/offline.md](docs/offline.md). Put SafetyBot in another tool: [docs/embed.md](docs/embed.md). Work-account sign-in: [docs/microsoft.md](docs/microsoft.md).
+The list is at most 200 rows. Photos are not in the payload (`photo_count` only).
+
+Full route list: [docs/api.md](docs/api.md). How the pages call those routes: [docs/architecture.md](docs/architecture.md). Offline queue: [docs/offline.md](docs/offline.md). Put SafetyBot in another tool: [docs/embed.md](docs/embed.md). Work-account sign-in: [docs/microsoft.md](docs/microsoft.md). Admin screens: [docs/admin.md](docs/admin.md). Stuck: [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Self-host
 
