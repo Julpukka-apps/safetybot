@@ -1,137 +1,113 @@
 # Admin user guide
 
-URL: `/admin`. This page is for the person who owns the SafetyBot host — usually one safety lead plus one IT contact. Workers stay on `/`.
+URL: `/admin`.
 
-Do not put the first-run password, the SafetyBot API key, or a model key in issues or screenshots.
+This page is for the person who owns the SafetyBot host — usually a safety specialist plus IT. Workers stay on `/`. Do not bookmark `/admin` on a shared site phone.
 
-## First boot
+## First sign-in
 
-1. Open `/admin`. Until you change it, the page shows the first-run username and password.
-2. Sign in.
-3. Set a new password of at least 8 characters. The first-run password then stops working in that browser.
-4. Open the **API** tab and rotate the SafetyBot API key before anyone else can call `/api/reports`.
-5. Only then expose the host.
+1. Open `/admin`.
+2. The page shows the first-run username and password until you replace them. Sign in with those values.
+3. Set a new password of at least 8 characters.
+4. The first-run password then stops working in that browser.
+5. Open the **API** tab and rotate the SafetyBot API key before anyone else can call `/api/reports`.
 
-If you forget the new password, you must clear the admin session on that browser or restore `data/safetybot-store.json` from a backup you control. There is no email reset.
+Do not copy the first-run password or the demo API key into docs, issues, or screenshots. They live in `src/schema.ts` so a clone can start. Change both on every host you expose.
 
-## What each tab is for
+If you forget the new password, that browser is locked out of `/admin` until you clear the site data for this origin or edit `data/safetybot-store.json` on the host. There is no email reset.
+
+## Daily use
 
 | Tab | You use it to |
 | --- | --- |
-| **Logic** | Case types, fields, what the model reads from speech vs a photo |
-| **API** | Model provider and key, webhook, SafetyBot API key, admin password |
-| **Reports** | Last cases on this host (at most 200) |
-| **Access** | Site list and optional Microsoft / Google sign-in |
+| Logic | Case types, fields, extract rules, prompts |
+| API | Model key, webhook, SafetyBot API key, admin password |
+| Reports | See or delete the last cases on this host |
+| Access | Organization tree and worker sign-in |
 
-Save on the tab you edited. Logic Save and Access Save are separate.
+The top-left SafetyBot wordmark always returns to the worker home `/`.
 
-## Logic — the form the AI fills
+## Logic
 
-This is the product configuration. You should not need to edit React to add a field.
+This is the form the AI fills. Save here instead of editing React.
 
-**Prompts**
+1. Set **case types**. Each type has a label, id, hint for the model, and an optional **needs confirm** flag (use that for Injury).
+2. Enable or disable a type. Add a type if your EHS system uses different names.
+3. Set **fields**. For each field: label, key, type, required, `extract_from` (`speech`, `photo`, `both`, `none`), optional `show_if`, allowed values, hint.
+4. Edit the description template and the extract / photo prompts if the drafts are too generic.
+5. Speech key terms: comma-separated words sent to speech-to-text (site names, tool names).
+6. Press **Save**. That writes the browser store and `POST /api/sync` with `replaceLogic: true`. The next worker draft uses this schema.
+7. **Reset to default** restores the seed in `defaultLogic()`. **Edit JSON** is for backup or a bulk paste.
 
-- Classification rules — how to pick injury vs near miss vs observation vs good practice vs idea
-- Description template — shape of the written narrative
-- Extract prompt — system instructions for the model
-- Photo reading prompt — sent with every picture
-- Speech key terms — comma-separated words that help speech-to-text (scaffold, excavation, …)
+`extract_from` is what the model is allowed to fill from speech versus a photo. `none` means the worker types it on `/draft`.
 
-**Case types**
+Component: `src/AdminLogic.tsx`. Field shapes: [schema.md](schema.md).
 
-- Label people see, stable `id` the API stores (`injury`, `near_miss`, …)
-- Hint for the model
-- **Needs confirm** — turn on for injury so the worker must tap an extra confirm
-- Enable or disable a type without deleting it
-- Add a type if your EHS system has another category. Keep `id` stable; the EHS mapper keys off it
+## API
 
-**Fields**
+Two different keys live on this tab.
 
-- Label, key, type (`text`, `textarea`, `enum`, `boolean`, `datetime`, `number`)
-- Required
-- `extract_from`: `speech`, `photo`, `both`, or `none` (none = worker or default only)
-- `show_if` — show the field only when another field or `case_type` matches
-- Allowed values for enums
-- Hint for the model
+**Model key** — speech and extract.
 
-**Save** writes the browser and `POST /api/sync` with `replaceLogic: true`. The next worker draft uses that schema. **Reset to default** restores the seed form. **Edit JSON** is for backup or a full paste; prefer the form unless you know the schema.
+1. Choose provider: Grok, OpenAI, Azure, or compatible.
+2. Model name. Blank uses `grok-4.6` (Grok) or `gpt-4.1-mini` (OpenAI).
+3. Base URL — required for Azure and compatible endpoints.
+4. Paste the model key, or leave it empty and set `XAI_API_KEY` / `OPENAI_API_KEY` on the server.
+5. Azure and compatible do **not** read those env names. They need the key and base URL on this tab (or a later server change).
 
-After Save, file one dummy case and confirm the new field appears on `/draft` and on `GET /api/reports`.
+`/api/ai/transcribe` talks to Grok Voice or OpenAI-style STT. It does **not** call Azure Speech. A Microsoft-only tenant can still use Azure for extract and keep Grok/OpenAI for speech, or type and use photos until a Speech adapter exists. Details: [microsoft.md](microsoft.md).
 
-Details of keys and `show_if`: [schema.md](schema.md).
+Where to get a key:
 
-## API — models and the pipe out
+- xAI / Grok: [console.x.ai](https://console.x.ai)
+- OpenAI: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- Azure OpenAI / Foundry: your company portal (deployment name + chat-completions URL)
 
-Two different keys live here:
+**Webhook** — each Submit POSTs the flattened report row to this URL. Header `x-safetybot-secret` carries the shared secret. Timeout 8 seconds.
 
-| Key | Purpose |
-| --- | --- |
-| Model key | Speech-to-text and extract. xAI, OpenAI, or Azure |
-| SafetyBot API key | Other systems calling `GET /api/reports` with `Authorization: Bearer` |
+**SafetyBot API key** — `Authorization: Bearer` for `GET /api/reports` and the other owner routes. Copy, copy curl, rotate. Other systems use this key, not the model key.
 
-**Provider**
+**Change password** — current password, then a new one of at least 8 characters.
 
-- Grok — default. Speech: `grok-voice-transcribe-2.0`. Extract: `grok-4.6` if the model box is blank.
-- OpenAI — speech and extract through OpenAI.
-- Azure or compatible — you must paste a **chat-completions** base URL and the deployment name. Azure Speech is **not** wired to `/api/ai/transcribe` yet. A Microsoft-only tenant can use Azure for extract and Grok/OpenAI for speech, or start with type + photo.
-
-Where to get a key (create on the vendor site, paste here, never commit):
-
-- xAI: [https://console.x.ai](https://console.x.ai)
-- OpenAI: [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-- Azure OpenAI / Foundry: your company portal — deployment name + key + chat-completions URL. See [microsoft.md](microsoft.md).
-
-Leave the model key empty to stay in demo mode (typed notes still draft).
-
-**Webhook**
-
-- “Also send each report to” — HTTPS URL of Power Automate, Logic Apps, or the EHS inbound API
-- Shared secret — SafetyBot sends it as `x-safetybot-secret`
-- Timeout 8 seconds. If the far end is slow, land on a queue first
-
-**SafetyBot API key** — copy, copy curl, rotate. Rotate on first boot and when someone leaves the integration team.
-
-**Change admin password** — current password, then a new one of at least 8 characters.
-
-Get a model key: [troubleshooting.md](troubleshooting.md). Company landing: [microsoft.md](microsoft.md). Routes: [api.md](api.md).
+Component: `src/AdminApi.tsx`.
 
 ## Reports
 
-The host keeps **at most 200** rows. This tab is a short buffer, not the archive. Copy sheet copies the table. Delete asks for a second tap, then removes that row from the browser and the host.
+The host keeps **at most 200 reports**. Older rows drop off this list when new ones arrive. Copy them out with the webhook or `GET /api/reports` before that happens.
 
-Point a webhook or a pull job at `/api/reports` before you rely on this in production. List rows include field columns and `photo_count`. They do **not** include the JPEG bytes.
+- One row per case.
+- Copy sheet copies the table.
+- Delete asks for a second tap, then removes the row from the browser and the host.
 
-## Access — sites and sign-in
+This list is not the official EHS archive. Photos are not in the table (`photo_count` only on the API row).
+
+Component: `src/AdminReports.tsx`.
+
+## Access
 
 **Organization**
 
-Paste or upload:
-
-```
-id,name,parent_id,type
-eu,Europe,,region
-fi,Finland,eu,country
-hel-01,Helsinki yard,fi,site
-```
-
-Save structure. Workers can then file against a place. `GET /api/organization` returns the same tree. Clear removes it.
+- Upload `.csv` or `.json`, or paste text.
+- Header: `id,name,parent_id,type`.
+- Use list, then Save structure. Clear removes the tree.
+- `GET /api/organization` returns the host copy.
 
 **Sign-in (optional)**
 
-- Require sign-in before a report — only company accounts can submit
-- Microsoft: tenant id + application (client) id. Redirect `{origin}/api/auth/microsoft/callback`
-- Google: client id. Redirect `{origin}/api/auth/google/callback`
-- There is no client-secret field on this screen
-- Save sign-in writes `PUT /api/auth/sso`
+- Require sign-in before a report.
+- Microsoft Entra: tenant id, application (client) id, redirect `{origin}/api/auth/microsoft/callback`.
+- Google: client id, redirect `{origin}/api/auth/google/callback`.
+- Save sign-in writes `PUT /api/auth/sso`.
 
-Leave both providers off if the local admin password is enough.
+There is no client-secret field. Leave both providers off if workers should file without an account.
 
-## Daily habits
+Component: `src/AdminAccess.tsx`. Company Entra path: [microsoft.md](microsoft.md).
 
-- Workers use `/`. You use `/admin`.
-- After a Logic change, file one dummy case.
-- After a webhook change, submit one dummy case and confirm it arrived.
-- Do not store real injuries on a public demo host.
-- Back up `data/` if this host matters.
+## Checklist after you clone
 
-Stuck? [troubleshooting.md](troubleshooting.md).
+- [ ] New admin password
+- [ ] SafetyBot API key rotated
+- [ ] Model key only if you want live speech or photo extract
+- [ ] Logic saved for *your* case types
+- [ ] Webhook or a pull job for `/api/reports`
+- [ ] HTTPS before any shared phone uses the mic

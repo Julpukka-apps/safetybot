@@ -1,0 +1,35 @@
+name: Bug
+description: Something in SafetyBot does not work
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste API keys, passwords, report text about real people, or photos of injuries.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Dummy text only.
+    validations:
+      required: true
+  - type: textarea
+    id: expect
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Worker capture
+        - Draft
+        - Admin
+        - API / webhook
+        - Offline queue
+        - Docs
+    validations:
+      required: true
