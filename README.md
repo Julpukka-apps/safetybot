@@ -1,6 +1,6 @@
 # SafetyBot
 
-**Status:** early preview (v0.1.6). The product is still moving.
+**Status:** early preview (v0.1.7). The product is still moving.
 
 SafetyBot is a small web app for field safety reports. A worker holds one button and speaks, adds up to three photos, or types a note. The app classifies the case, writes a short description, and fills only the fields the current schema asks for. An administrator can change those fields — and what the model should take from speech versus a photo — without shipping a new build.
 
@@ -36,7 +36,7 @@ Live UI. Dummy hazard copy only.
 
 | Path | Who | What |
 | --- | --- | --- |
-| `/` | worker | Hold to talk, add up to 3 photos, or type |
+| `/` | worker | Hold to talk, add up to 3 photos, or type. The top-left SafetyBot wordmark always opens this page. |
 | `/draft` | worker | Check the generated report, then submit |
 | `/done` | worker | Confirmation |
 | `/admin` | owner | Logic, API, Reports, Access |

@@ -1,4 +1,4 @@
-const CACHE = "safetybot-shell-v016";
+const CACHE = "safetybot-shell-v017";
 const SHELL = ["/", "/draft", "/done", "/manifest.webmanifest", "/favicon.svg", "/icon-180.png", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {

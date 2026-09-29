@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Mic } from "lucide-react";
-import { WorkerColumn, WorkerHeader, Wordmark } from "@/App";
+import { HOME_EVENT, WorkerColumn, WorkerHeader, Wordmark } from "@/App";
 import { activeLanguage, useI18n } from "@/i18n";
 import { isNetworkError, isReachable } from "@/online";
 import { enqueue, list, remove, type OutboxItem } from "@/outbox";
@@ -39,6 +39,7 @@ export function Capture() {
   const recorderRef = useRef<{ stop: () => Promise<Blob | null> } | null>(null);
   const speechRef = useRef<{ stop: () => void } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const epoch = useRef(0);
 
   async function refreshQueue() {
     const items = await list();
@@ -77,6 +78,35 @@ export function Capture() {
   useEffect(() => {
     transcriptRef.current = transcript;
   }, [transcript]);
+
+  useEffect(() => {
+    function home() {
+      epoch.current += 1;
+      if (holdingRef.current) {
+        holdingRef.current = false;
+        speechRef.current?.stop();
+        speechRef.current = null;
+        void recorderRef.current?.stop();
+        recorderRef.current = null;
+      }
+      setFlushPaused(false);
+      setHolding(false);
+      setPhase("idle");
+      setSheet(false);
+      setQueueOpen(false);
+      setPendingDelete("");
+      setTyping(false);
+      setSavedNotice(false);
+      setError("");
+      setPhotos([]);
+      photosRef.current = [];
+      setTyped("");
+      setTranscript("");
+      transcriptRef.current = "";
+    }
+    window.addEventListener(HOME_EVENT, home);
+    return () => window.removeEventListener(HOME_EVENT, home);
+  }, []);
 
   async function saveOffline(input: {
     typed: string;
@@ -124,6 +154,7 @@ export function Capture() {
 
   async function endHold() {
     if (!holdingRef.current) return;
+    const ticket = epoch.current;
     holdingRef.current = false;
     setHolding(false);
     const audioPromise = recorderRef.current?.stop() ?? Promise.resolve(null);
@@ -131,6 +162,7 @@ export function Capture() {
     speechRef.current = null;
     recorderRef.current = null;
     const audio = await audioPromise;
+    if (ticket !== epoch.current) return;
     const live = transcriptRef.current.trim();
     const shot = photosRef.current;
     if (!(await isReachable())) {
@@ -162,10 +194,13 @@ export function Capture() {
         setError("holdLonger");
         return;
       }
+      if (ticket !== epoch.current) return;
       const extraction = await extractReport({ transcript: text, photos: shot, logic, language: spoken });
+      if (ticket !== epoch.current) return;
       saveCapture({ transcript: text, photos: shot, language: spoken, extraction });
       void navigate.push("/draft");
     } catch (caught) {
+      if (ticket !== epoch.current) return;
       if (isNetworkError(caught)) {
         await saveOffline({ typed: "", live, transcript: live, photos: shot, audio });
         return;
@@ -173,11 +208,12 @@ export function Capture() {
       setPhase("idle");
       setError("outboxFailed");
     } finally {
-      setFlushPaused(false);
+      if (ticket === epoch.current) setFlushPaused(false);
     }
   }
 
   async function submitTyped() {
+    const ticket = epoch.current;
     const text = typed.trim();
     const shot = photosRef.current;
     if (!text && shot.length === 0) {
@@ -192,10 +228,13 @@ export function Capture() {
     setFlushPaused(true);
     try {
       const logic = (await pullLogic()) ?? loadLogic();
+      if (ticket !== epoch.current) return;
       const extraction = await extractReport({ transcript: text, photos: shot, logic, language: spoken });
+      if (ticket !== epoch.current) return;
       saveCapture({ transcript: text, photos: shot, language: spoken, extraction });
       void navigate.push("/draft");
     } catch (caught) {
+      if (ticket !== epoch.current) return;
       if (isNetworkError(caught)) {
         await saveOffline({ typed: text, live: "", transcript: text, photos: shot, audio: null });
         return;
@@ -203,11 +242,12 @@ export function Capture() {
       setPhase("idle");
       setError("outboxFailed");
     } finally {
-      setFlushPaused(false);
+      if (ticket === epoch.current) setFlushPaused(false);
     }
   }
 
   async function writeFromPhoto(all: string[]) {
+    const ticket = epoch.current;
     if (!(await isReachable())) {
       await saveOffline({ typed: "", live: "", transcript: "", photos: all, audio: null });
       return;
@@ -217,10 +257,13 @@ export function Capture() {
     setFlushPaused(true);
     try {
       const logic = (await pullLogic()) ?? loadLogic();
+      if (ticket !== epoch.current) return;
       const extraction = await extractReport({ transcript: "", photos: all, logic, language: spoken });
+      if (ticket !== epoch.current) return;
       saveCapture({ transcript: "", photos: all, language: spoken, extraction });
       void navigate.push("/draft");
     } catch (caught) {
+      if (ticket !== epoch.current) return;
       if (isNetworkError(caught)) {
         await saveOffline({ typed: "", live: "", transcript: "", photos: all, audio: null });
         return;
@@ -228,7 +271,7 @@ export function Capture() {
       setPhase("idle");
       setError("outboxFailed");
     } finally {
-      setFlushPaused(false);
+      if (ticket === epoch.current) setFlushPaused(false);
     }
   }
 

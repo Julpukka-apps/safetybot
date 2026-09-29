@@ -1,6 +1,6 @@
 # Contributing
 
-SafetyBot is an early preview (v0.1.6).
+SafetyBot is an early preview (v0.1.7).
 
 ## Run
 

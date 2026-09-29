@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7
+
+- The top-left SafetyBot wordmark opens the worker home from every screen
+
 ## 0.1.6
 
 - Offline capture queues speech, photos, and typed notes on the phone
