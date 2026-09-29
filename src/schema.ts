@@ -39,6 +39,8 @@ export type Logic = {
   classification_rules: string;
   description_template: string;
   extract_system_prompt: string;
+  /** Sent with every photo. Editable in Admin. */
+  photo_prompt: string;
   stt_keyterms: string[];
   fields: Field[];
 };
@@ -294,6 +296,16 @@ function field(
   };
 }
 
+export const DEFAULT_PHOTO_PROMPT = [
+  "Read the attached photos.",
+  "Identify visible hazards: unsafe conditions, missing guards, spills, blocked exits, damaged equipment, bad housekeeping, and anyone in the line of fire.",
+  "Fill description and the other fields from what is actually visible.",
+  "If the worker also spoke, treat the speech as what happened and use the photo to add hazards you can see.",
+  "If there is no speech, the photo is the whole report. Prefer safety_observation when you see a hazard and no injury.",
+  "Do not invent an injury, a name, an equipment number, or a cause you cannot see.",
+  "If the photo is too unclear to name a hazard, say that in description and leave the other fields null.",
+].join(" ");
+
 export function defaultLogic(): Logic {
   const description_template =
     "what / where / who / equipment / activity / hazard or event / immediate action / residual risk. Factual. No blame. User language.";
@@ -348,6 +360,7 @@ export function defaultLogic(): Logic {
     description_template,
     extract_system_prompt:
       "You fill a SafetyBot report. Return only JSON matching the current field schema. Use only allowed enums. Unknown fields null. List missing requireds in ask_user. Classify case_type with confidence 0-1.",
+    photo_prompt: DEFAULT_PHOTO_PROMPT,
     stt_keyterms: [
       "elevator",
       "escalator",
@@ -703,6 +716,10 @@ export function normalizeLogic(input: unknown): Logic {
       typeof raw.extract_system_prompt === "string" && raw.extract_system_prompt.trim()
         ? raw.extract_system_prompt
         : seed.extract_system_prompt,
+    photo_prompt:
+      typeof raw.photo_prompt === "string" && raw.photo_prompt.trim()
+        ? raw.photo_prompt
+        : seed.photo_prompt,
     stt_keyterms: asStringList(raw.stt_keyterms).slice(0, 100).map((term) => term.slice(0, 50)),
     fields: uniqueFields,
   };
@@ -816,20 +833,10 @@ export function wantsPhotoExtract(logic: Logic): boolean {
   return logic.fields.some((item) => item.extract_from === "photo" || item.extract_from === "both");
 }
 
-/** What to tell the model about attached photos. A photo with no speech is the whole report. */
-export function photoCaptureBrief(transcript: string, photoCount: number): string {
+/** Admin-edited instructions sent with every photo. Empty falls back to the seed. */
+export function photoCaptureBrief(logic: Logic, photoCount: number): string {
   if (photoCount <= 0) return "";
-  if (transcript.trim()) {
-    return "Photos are attached. Use them for every field you can see, especially those marked extract photo or both. Name hazards that are visible. Do not invent an injury from an unclear photo.";
-  }
-  return [
-    "The worker did not speak. The photo is the whole report.",
-    "Identify visible hazards: unsafe conditions, missing guards, spills, blocked exits, damaged equipment, bad housekeeping, and anyone in the line of fire.",
-    "Fill description and the other fields from what is actually visible.",
-    "Prefer safety_observation when you see a hazard and no injury.",
-    "Do not invent an injury, a name, an equipment number, or a cause you cannot see.",
-    "If the photo is too unclear to name a hazard, say that in description and leave the other fields null.",
-  ].join(" ");
+  return logic.photo_prompt.trim() || DEFAULT_PHOTO_PROMPT;
 }
 
 const CASE_PATTERNS: Record<string, RegExp> = {

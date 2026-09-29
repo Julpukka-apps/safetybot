@@ -176,6 +176,14 @@ export function AdminLogic() {
                   onChange={(event) => setLogic({ ...logic, extract_system_prompt: event.target.value })}
                 />
               </label>
+              <label className="grid gap-1 px-2 text-sm font-medium">
+                {t("logic.photoPrompt")}
+                <textarea
+                  className="field-input min-h-40"
+                  value={logic.photo_prompt}
+                  onChange={(event) => setLogic({ ...logic, photo_prompt: event.target.value })}
+                />
+              </label>
               <label className="grid gap-1 px-2 pb-2 text-sm font-medium">
                 {t("logic.terms")}
                 <textarea

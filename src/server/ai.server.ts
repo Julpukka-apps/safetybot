@@ -122,7 +122,7 @@ export async function extractWithGrok(input: {
     return { ok: false, error: "no key" };
   }
   const photos = input.photos.slice(0, 3);
-  const brief = photoCaptureBrief(input.transcript, photos.length);
+  const brief = photoCaptureBrief(input.logic, photos.length);
   const content: Array<Record<string, unknown>> = [
     {
       type: "text",
