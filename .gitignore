@@ -1,7 +1,10 @@
 node_modules
+dist
+coverage
 .next
-data/safetybot-reports.jsonl
-.env
-.env.local
-
 data/
+received-reports
+credentials.json
+.env
+.env.*
+!.env.example
