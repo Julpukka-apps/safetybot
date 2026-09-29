@@ -103,13 +103,13 @@ Copy `.env.example` to `.env.local` only if you want a server-side model key. Mo
 
 ## Offline
 
-A worker with no signal can still hold to talk, add up to 3 photos, or type. The phone saves that capture. It does not write the draft until the app is open and online.
+A worker with no signal can still hold to talk, add up to 3 photos, or type. The phone saves that capture. It does not write the draft, and it does not submit, until the app is open and online.
 
-The first visit must be online so the app shell is cached. After that, `/` can open with no network.
+The first visit must be online so the app shell is cached. After that, `/` can open with no network. The home page then says “Saved on this phone” and shows how many items are waiting.
 
-When you have signal, open SafetyBot and leave it in front. The phone writes the draft and opens it. You still check it and tap Submit. An injury still asks you to confirm.
+When you have signal, open SafetyBot and leave it in front. The phone writes one draft and opens it. You still check it and tap Submit. An injury still asks you to confirm. A hidden phone does not write the draft. Reopen the app once you have signal.
 
-The queue lives on the phone, not on the server. Nothing is sent until you submit. A hidden phone does not write the draft. Reopen the app once you have signal.
+The queue lives in IndexedDB on the phone, not on the server and not in git. Full rules: [docs/offline.md](docs/offline.md).
 
 ## Change the form
 
@@ -168,7 +168,7 @@ curl -sS http://127.0.0.1:8082/api/reports \
   -H "Authorization: Bearer $SAFETYBOT_API_KEY"
 ```
 
-Full route list: [docs/api.md](docs/api.md). How the pages call those routes: [docs/architecture.md](docs/architecture.md).
+Full route list: [docs/api.md](docs/api.md). How the pages call those routes: [docs/architecture.md](docs/architecture.md). Offline queue: [docs/offline.md](docs/offline.md).
 
 ## Self-host
 

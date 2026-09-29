@@ -43,6 +43,8 @@ Send `Authorization: Bearer <SafetyBot API key>`.
 
 ## Model routes
 
+These are not called while the phone has no signal. The waiting capture is IndexedDB on the device, not a server route. See [offline.md](offline.md).
+
 These do not use the bearer key. The browser sends `x-ai-provider`, `x-ai-key`, `x-ai-model`, and `x-ai-base`. An empty key falls back to `XAI_API_KEY` for provider `xai` and `OPENAI_API_KEY` for provider `openai`. Azure and compatible calls need the browser key and base URL.
 
 Do not log those headers. They carry the model key.

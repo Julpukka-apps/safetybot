@@ -14,6 +14,14 @@ SafetyBot is a Next.js app. Worker pages and admin pages talk to route handlers 
 
 With no model key, typed text still produces a demo draft. Live speech and photo reading need a model key.
 
+## Offline
+
+If the health check fails, Capture does not call transcribe or extract. It writes the raw capture to IndexedDB (`safetybot` / `safetybot_outbox_v1`, max 20). The service worker can open `/`, `/draft`, and `/done` after the first online visit. It does not cache `/api/*`.
+
+Flush runs only while the page is visible: on show, on `online`, on home mount, or when the worker taps Write now. One item is transcribed if it has a recording, then extracted, then opened on Draft. Flush never calls `POST /api/reports`. A hidden tab is not a flush path.
+
+Details: [offline.md](offline.md).
+
 ## Admin
 
 `/admin` has four tabs: Logic, API, Reports, Access.

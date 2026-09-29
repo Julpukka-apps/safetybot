@@ -5,6 +5,7 @@
 - Offline capture queues speech, photos, and typed notes on the phone
 - The draft is written only when the app is open and online
 - Submit still happens on the draft screen
+- Phone queue is documented in `docs/offline.md`
 
 ## 0.1.5
 

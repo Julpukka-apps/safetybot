@@ -23,7 +23,7 @@ Dev server: http://127.0.0.1:8082
 
 ## Docs that must stay in sync
 
-If you change `LANGUAGES`, routes, env vars, admin tabs, or the seed in `defaultLogic()`, update the docs in the same change:
+If you change `LANGUAGES`, routes, env vars, admin tabs, the offline queue, or the seed in `defaultLogic()`, update the docs in the same change:
 
 - `README.md`
 - `docs/admin.md`
@@ -32,5 +32,6 @@ If you change `LANGUAGES`, routes, env vars, admin tabs, or the seed in `default
 - `docs/self-host.md`
 - `docs/languages.md`
 - `docs/architecture.md`
+- `docs/offline.md`
 
 The language list is every id in `LANGUAGES` in `src/schema.ts`. Do not shorten it to two languages.
