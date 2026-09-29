@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { Camera, Mic } from "lucide-react";
 import { WorkerColumn, WorkerHeader, Wordmark } from "@/App";
 import { activeLanguage, useI18n } from "@/i18n";
+import { isNetworkError, isReachable } from "@/online";
+import { enqueue, list, remove, type OutboxItem } from "@/outbox";
+import { requestFlush, setFlushPaused } from "@/outbox-flush";
 import { fetchSession, pullLogic, pushConfig, signOutSession, type SignedInUser } from "@/remote";
 import { LANGUAGES } from "@/schema";
-import { loadLogic, loadSso, saveCapture } from "@/storage";
+import { cacheSession, loadCachedSession, loadLogic, loadSso, saveCapture } from "@/storage";
 import { extractReport, resizeImage, transcribeSpeech } from "@/xai";
 
 export function Capture() {
@@ -25,11 +28,27 @@ export function Capture() {
   const [session, setSession] = useState<SignedInUser | null>(null);
   const [requireSignIn, setRequireSignIn] = useState(false);
   const [providers, setProviders] = useState({ microsoft: false, google: false });
+  const [savedNotice, setSavedNotice] = useState(false);
+  const [waiting, setWaiting] = useState(0);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [queue, setQueue] = useState<OutboxItem[]>([]);
+  const [pendingDelete, setPendingDelete] = useState("");
   const transcriptRef = useRef("");
   const holdingRef = useRef(false);
+  const photosRef = useRef<string[]>([]);
   const recorderRef = useRef<{ stop: () => Promise<Blob | null> } | null>(null);
   const speechRef = useRef<{ stop: () => void } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  async function refreshQueue() {
+    const items = await list();
+    setQueue(items);
+    setWaiting(items.length);
+  }
+
+  useEffect(() => {
+    photosRef.current = photos;
+  }, [photos]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -40,13 +59,54 @@ export function Capture() {
       const sso = loadSso();
       setRequireSignIn(sso.requireSignIn);
       setProviders({ microsoft: sso.microsoft.enabled, google: sso.google.enabled });
-      setSession(await fetchSession());
+      const live = await fetchSession();
+      if (live) {
+        cacheSession(live);
+        setSession(live);
+      } else if (await isReachable()) {
+        cacheSession(null);
+        setSession(null);
+      } else {
+        setSession(loadCachedSession<SignedInUser>());
+      }
+      await refreshQueue();
+      await requestFlush();
     })();
   }, []);
 
   useEffect(() => {
     transcriptRef.current = transcript;
   }, [transcript]);
+
+  async function saveOffline(input: {
+    typed: string;
+    live: string;
+    transcript: string;
+    photos: string[];
+    audio: Blob | null;
+  }) {
+    const saved = await enqueue({
+      language: spoken,
+      typed_text: input.typed,
+      live_transcript: input.live,
+      transcript: input.transcript || input.typed || input.live,
+      photos: input.photos,
+      audio: input.audio,
+      audio_mime: input.audio?.type || "",
+    });
+    setPhase("idle");
+    if (saved === "full") {
+      setError("outboxFull");
+      return;
+    }
+    setError("");
+    setPhotos([]);
+    setTyped("");
+    setTranscript("");
+    transcriptRef.current = "";
+    setSavedNotice(true);
+    await refreshQueue();
+  }
 
   async function beginHold() {
     if (holdingRef.current || phase === "writing") return;
@@ -66,62 +126,117 @@ export function Capture() {
     if (!holdingRef.current) return;
     holdingRef.current = false;
     setHolding(false);
-    setPhase("writing");
     const audioPromise = recorderRef.current?.stop() ?? Promise.resolve(null);
     speechRef.current?.stop();
     speechRef.current = null;
     recorderRef.current = null;
     const audio = await audioPromise;
-    const logic = (await pullLogic()) ?? loadLogic();
-    let text = transcriptRef.current.trim();
-    if (audio && audio.size > 800) {
-      const heard = await transcribeSpeech({
-        audio,
-        language: spoken,
-        keyterms: logic.stt_keyterms,
-      });
-      if (heard) {
-        text = heard;
-        setTranscript(heard);
+    const live = transcriptRef.current.trim();
+    const shot = photosRef.current;
+    if (!(await isReachable())) {
+      if (!live && !(audio && audio.size > 800) && shot.length === 0) {
+        setError("holdLonger");
+        return;
       }
-    }
-    if (!text && photos.length === 0) {
-      setPhase("idle");
-      setError("holdLonger");
+      await saveOffline({ typed: "", live, transcript: live, photos: shot, audio });
       return;
     }
-    const extraction = await extractReport({ transcript: text, photos, logic, language: spoken });
-    saveCapture({ transcript: text, photos, language: spoken, extraction });
-    void navigate.push("/draft");
+    setPhase("writing");
+    setFlushPaused(true);
+    try {
+      const logic = (await pullLogic()) ?? loadLogic();
+      let text = live;
+      if (audio && audio.size > 800) {
+        const heard = await transcribeSpeech({
+          audio,
+          language: spoken,
+          keyterms: logic.stt_keyterms,
+        });
+        if (heard) {
+          text = heard;
+          setTranscript(heard);
+        }
+      }
+      if (!text && shot.length === 0) {
+        setPhase("idle");
+        setError("holdLonger");
+        return;
+      }
+      const extraction = await extractReport({ transcript: text, photos: shot, logic, language: spoken });
+      saveCapture({ transcript: text, photos: shot, language: spoken, extraction });
+      void navigate.push("/draft");
+    } catch (caught) {
+      if (isNetworkError(caught)) {
+        await saveOffline({ typed: "", live, transcript: live, photos: shot, audio });
+        return;
+      }
+      setPhase("idle");
+      setError("outboxFailed");
+    } finally {
+      setFlushPaused(false);
+    }
   }
 
   async function submitTyped() {
     const text = typed.trim();
-    if (!text && photos.length === 0) {
+    const shot = photosRef.current;
+    if (!text && shot.length === 0) {
       setError("typeOrPhoto");
       return;
     }
+    if (!(await isReachable())) {
+      await saveOffline({ typed: text, live: "", transcript: text, photos: shot, audio: null });
+      return;
+    }
     setPhase("writing");
-    const logic = (await pullLogic()) ?? loadLogic();
-    const extraction = await extractReport({ transcript: text, photos, logic, language: spoken });
-    saveCapture({ transcript: text, photos, language: spoken, extraction });
-    void navigate.push("/draft");
+    setFlushPaused(true);
+    try {
+      const logic = (await pullLogic()) ?? loadLogic();
+      const extraction = await extractReport({ transcript: text, photos: shot, logic, language: spoken });
+      saveCapture({ transcript: text, photos: shot, language: spoken, extraction });
+      void navigate.push("/draft");
+    } catch (caught) {
+      if (isNetworkError(caught)) {
+        await saveOffline({ typed: text, live: "", transcript: text, photos: shot, audio: null });
+        return;
+      }
+      setPhase("idle");
+      setError("outboxFailed");
+    } finally {
+      setFlushPaused(false);
+    }
   }
 
   async function writeFromPhoto(all: string[]) {
+    if (!(await isReachable())) {
+      await saveOffline({ typed: "", live: "", transcript: "", photos: all, audio: null });
+      return;
+    }
     setPhase("writing");
     setError("");
-    const logic = (await pullLogic()) ?? loadLogic();
-    const extraction = await extractReport({ transcript: "", photos: all, logic, language: spoken });
-    saveCapture({ transcript: "", photos: all, language: spoken, extraction });
-    void navigate.push("/draft");
+    setFlushPaused(true);
+    try {
+      const logic = (await pullLogic()) ?? loadLogic();
+      const extraction = await extractReport({ transcript: "", photos: all, logic, language: spoken });
+      saveCapture({ transcript: "", photos: all, language: spoken, extraction });
+      void navigate.push("/draft");
+    } catch (caught) {
+      if (isNetworkError(caught)) {
+        await saveOffline({ typed: "", live: "", transcript: "", photos: all, audio: null });
+        return;
+      }
+      setPhase("idle");
+      setError("outboxFailed");
+    } finally {
+      setFlushPaused(false);
+    }
   }
 
-  async function onPhotos(list: FileList | null) {
-    if (!list?.length || phase === "writing") return;
+  async function onPhotos(fileList: FileList | null) {
+    if (!fileList?.length || phase === "writing") return;
     const room = 3 - photos.length;
     const next: string[] = [];
-    for (const file of [...list].slice(0, room)) {
+    for (const file of [...fileList].slice(0, room)) {
       try {
         next.push(await resizeImage(file));
       } catch {
@@ -132,10 +247,22 @@ export function Capture() {
     if (!next.length) return;
     const all = [...photos, ...next].slice(0, 3);
     setPhotos(all);
+    photosRef.current = all;
     await writeFromPhoto(all);
   }
 
+  function startNew() {
+    setSavedNotice(false);
+    setTyping(false);
+    setError("");
+    setPhotos([]);
+    setTyped("");
+    setTranscript("");
+    transcriptRef.current = "";
+  }
+
   const gated = requireSignIn && !session;
+  const waitingLabel = t("waitingSignal").replace("{n}", String(waiting));
 
   return (
     <WorkerColumn>
@@ -154,11 +281,22 @@ export function Capture() {
                 {t("signInGoogle")}
               </a>
             ) : null}
-            {!providers.microsoft && !providers.google ? (
-              <p className="capture-note">{t("askAdminSso")}</p>
-            ) : null}
+            {!providers.microsoft && !providers.google ? <p className="capture-note">{t("askAdminSso")}</p> : null}
           </div>
           {error ? <p className="capture-note">{t(error)}</p> : null}
+        </div>
+      ) : savedNotice ? (
+        <div className="capture">
+          <p className="capture-mic-label">{t("savedOffline")}</p>
+          <p className="capture-help">{t("savedOfflineHelp")}</p>
+          <button type="button" className="tap tap-primary capture-write w-full" onClick={startNew}>
+            {t("newReport")}
+          </button>
+          {waiting > 0 ? (
+            <button type="button" className="outbox-badge" onClick={() => setQueueOpen(true)}>
+              {waitingLabel}
+            </button>
+          ) : null}
         </div>
       ) : (
         <div className="capture">
@@ -206,6 +344,11 @@ export function Capture() {
                 {error ? <p className="capture-note">{t(error)}</p> : null}
               </div>
               <div className="capture-more">
+                {waiting > 0 ? (
+                  <button type="button" className="outbox-badge" onClick={() => setQueueOpen(true)}>
+                    {waitingLabel}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="photo-bar"
@@ -242,14 +385,73 @@ export function Capture() {
           </div>
         </div>
       ) : null}
+      {queueOpen ? (
+        <div className="sheet" role="presentation" onClick={() => setQueueOpen(false)}>
+          <div className="sheet-card" role="dialog" aria-label={waitingLabel} onClick={(event) => event.stopPropagation()}>
+            {queue.length === 0 ? <p>{t("outboxEmpty")}</p> : null}
+            <div className="outbox-list">
+              {queue.map((item) => {
+                const words = (item.transcript || item.typed_text || item.live_transcript).trim();
+                return (
+                  <div key={item.id} className="outbox-row">
+                    {item.photos[0] ? <img className="outbox-thumb" src={item.photos[0]} alt="" /> : <span className="outbox-thumb" />}
+                    <div>
+                      <p className="outbox-meta">
+                        {new Date(item.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                      <p className="outbox-words">{words || t("savedOffline")}</p>
+                      <p className="outbox-meta">
+                        {item.status === "failed" ? t("outboxFailed") : item.status === "writing" ? t("writing") : t("savedOfflineHelp")}
+                      </p>
+                      {item.error === "audio_dropped" ? <p className="outbox-meta">{t("outboxAudioNote")}</p> : null}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="tap tap-primary"
+                          onClick={() => void requestFlush(item.id).then(() => refreshQueue())}
+                        >
+                          {t("writeNow")}
+                        </button>
+                        {item.status === "failed" ? (
+                          <button
+                            type="button"
+                            className="tap tap-quiet"
+                            onClick={() => void requestFlush(item.id).then(() => refreshQueue())}
+                          >
+                            {t("outboxRetry")}
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="tap tap-quiet"
+                          onClick={() => {
+                            if (pendingDelete !== item.id) {
+                              setPendingDelete(item.id);
+                              return;
+                            }
+                            void remove(item.id).then(() => {
+                              setPendingDelete("");
+                              return refreshQueue();
+                            });
+                          }}
+                        >
+                          {pendingDelete === item.id ? t("reports.confirmDelete") : t("outboxDelete")}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <button type="button" className="tap tap-text mt-2 w-full" onClick={() => setQueueOpen(false)}>
+              {t("close")}
+            </button>
+          </div>
+        </div>
+      ) : null}
       {sheet ? (
         <div className="sheet" role="presentation" onClick={() => setSheet(false)}>
-          <div
-            className="sheet-card"
-            role="dialog"
-            aria-label={t("settings")}
-            onClick={(event) => event.stopPropagation()}
-          >
+          <div className="sheet-card" role="dialog" aria-label={t("settings")} onClick={(event) => event.stopPropagation()}>
             {session ? (
               <p className="text-base">
                 {t("signedIn")} {session.name}
@@ -271,6 +473,7 @@ export function Capture() {
                 type="button"
                 className="tap tap-quiet mt-4 w-full"
                 onClick={() => {
+                  cacheSession(null);
                   void signOutSession().then(() => setSession(null));
                 }}
               >

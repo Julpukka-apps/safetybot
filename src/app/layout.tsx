@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { LocaleProvider } from "@/i18n";
+import { OutboxSync } from "@/OutboxSync";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,7 +22,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <LocaleProvider>{children}</LocaleProvider>
+        <LocaleProvider>
+          <OutboxSync />
+          {children}
+        </LocaleProvider>
       </body>
     </html>
   );

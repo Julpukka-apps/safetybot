@@ -1,6 +1,6 @@
 # Security
 
-This repository is private. The app is an early preview (v0.1.5).
+This repository is private. The app is an early preview (v0.1.6).
 
 ## Reporting
 

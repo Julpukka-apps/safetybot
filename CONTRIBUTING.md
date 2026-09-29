@@ -1,6 +1,6 @@
 # Contributing
 
-SafetyBot is an early preview (v0.1.5). The repository stays private until the owner publishes it.
+SafetyBot is an early preview (v0.1.6). The repository stays private until the owner publishes it.
 
 ## Run
 

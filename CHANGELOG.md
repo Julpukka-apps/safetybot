@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6
+
+- Offline capture queues speech, photos, and typed notes on the phone
+- The draft is written only when the app is open and online
+- Submit still happens on the draft screen
+
 ## 0.1.5
 
 - Docs match the running app: languages, admin tabs, API, schema, and self-host

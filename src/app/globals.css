@@ -295,6 +295,53 @@
   font-weight: 700;
 }
 
+.outbox-badge {
+  align-self: center;
+  min-height: 44px;
+  margin: 0 0 8px;
+  border: 0;
+  background: transparent;
+  color: #1565c0;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.outbox-list {
+  display: grid;
+  gap: 12px;
+  max-height: 70dvh;
+  overflow: auto;
+  text-align: start;
+}
+
+.outbox-row {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.outbox-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--color-wash);
+}
+
+.outbox-words {
+  margin: 0;
+  font-size: 16px;
+}
+
+.outbox-meta {
+  margin: 2px 0 0;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
 .cam {
   display: grid;
   width: 56px;

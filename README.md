@@ -1,6 +1,6 @@
 # SafetyBot
 
-**Status:** early preview (v0.1.5). The product is still moving. This repository is private until the owner publishes it.
+**Status:** early preview (v0.1.6). The product is still moving. This repository is private until the owner publishes it.
 
 Live preview: [safetybot.julpukka.com](https://safetybot.julpukka.com)
 
@@ -100,6 +100,16 @@ Copy `.env.example` to `.env.local` only if you want a server-side model key. Mo
 | Host | `data/safetybot-reports.jsonl` | Submitted reports |
 
 `data/` is gitignored. In production, keep that directory on a persistent disk.
+
+## Offline
+
+A worker with no signal can still hold to talk, add up to 3 photos, or type. The phone saves that capture. It does not write the draft until the app is open and online.
+
+The first visit must be online so the app shell is cached. After that, `/` can open with no network.
+
+When you have signal, open SafetyBot and leave it in front. The phone writes the draft and opens it. You still check it and tap Submit. An injury still asks you to confirm.
+
+The queue lives on the phone, not on the server. Nothing is sent until you submit. A hidden phone does not write the draft. Reopen the app once you have signal.
 
 ## Change the form
 

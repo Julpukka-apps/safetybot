@@ -1,3 +1,4 @@
+import { isNetworkError } from "@/online";
 import type { Extraction, Logic } from "@/schema";
 import { demoExtract, normalizeLogic } from "@/schema";
 import { loadAi } from "@/storage";
@@ -79,7 +80,8 @@ export async function transcribeSpeech(input: {
     if (!response.ok) return null;
     const body = (await response.json()) as { text?: string };
     return body.text?.trim() || null;
-  } catch {
+  } catch (error) {
+    if (isNetworkError(error)) throw error;
     return null;
   }
 }
@@ -118,7 +120,8 @@ export async function extractReport(input: {
       values: body.extraction.values || {},
       source: body.extraction.source || "grok",
     };
-  } catch {
+  } catch (error) {
+    if (isNetworkError(error)) throw error;
     const demo = fallback();
     demo.note =
       input.photos.length && !input.transcript.trim()

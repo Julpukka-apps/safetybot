@@ -103,7 +103,15 @@ Admin → Access can require Microsoft Entra or Google before a worker submits. 
 
 Microsoft needs a tenant id and an application (client) id. Google needs a client id. Those values are saved from the Access tab, not from `.env.example`. Leave sign-in off if you only need the local admin password.
 
-## 8. Before you expose the host
+## 8. Offline capture
+
+The first visit must be online. That caches `/`, `/draft`, `/done`, and the app shell. After that, a worker can hold to talk, add up to 3 photos, or type with no signal.
+
+The phone stores the raw capture. It does not call extract until SafetyBot is open and online. The worker still checks the draft and taps Submit. Injury still needs the confirm button.
+
+The queue is on the phone. It is not in `data/` and it is not in git. A phone in the background will not flush. Ask workers to reopen the app when they have signal.
+
+## 9. Before you expose the host
 
 - [ ] Admin password changed
 - [ ] SafetyBot API key rotated

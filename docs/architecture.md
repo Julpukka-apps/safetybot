@@ -5,11 +5,12 @@ SafetyBot is a Next.js app. Worker pages and admin pages talk to route handlers 
 ## Worker
 
 1. `/` — hold to talk, add up to three photos, or type a note.
-2. Optional `POST /api/ai/transcribe` when the worker spoke.
-3. `POST /api/ai/extract` — classifies the case and fills the current fields.
-4. `/draft` — the worker checks the draft.
-5. `POST /api/reports` — stores the report. An optional webhook fires here.
-6. `/done` — confirmation.
+2. If `/api/health` does not answer, the raw capture stays on the phone. Extract waits until the app is open and online.
+3. Optional `POST /api/ai/transcribe` when the worker spoke and there is no better text yet.
+4. `POST /api/ai/extract` — classifies the case and fills the current fields.
+5. `/draft` — the worker checks the draft. Nothing is submitted from the phone queue.
+6. `POST /api/reports` — stores the report. An optional webhook fires here.
+7. `/done` — confirmation.
 
 With no model key, typed text still produces a demo draft. Live speech and photo reading need a model key.
 

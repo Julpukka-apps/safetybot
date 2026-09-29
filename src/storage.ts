@@ -21,6 +21,7 @@ const SESSION_ADMIN = "safetybot_admin";
 const SESSION_SETUP = "safetybot_pw_setup";
 const SESSION_XAI = "safetybot_xai_key";
 const SESSION_CAPTURE = "safetybot_capture";
+const SESSION_USER = "safetybot_session_user";
 const SESSION_LAST = "safetybot_last_id";
 const ORG_KEY = "safetybot_org_v1";
 const SSO_KEY = "safetybot_sso_v1";
@@ -257,6 +258,22 @@ export function saveCapture(draft: CaptureDraft) {
 export function clearCapture() {
   if (!canUse()) return;
   sessionStorage.removeItem(SESSION_CAPTURE);
+}
+
+export function cacheSession(user: { name: string; email: string } | null) {
+  if (!canUse()) return;
+  if (!user) sessionStorage.removeItem(SESSION_USER);
+  else sessionStorage.setItem(SESSION_USER, JSON.stringify(user));
+}
+
+export function loadCachedSession<T>(): T | null {
+  if (!canUse()) return null;
+  try {
+    const raw = sessionStorage.getItem(SESSION_USER);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function rememberReport(id: string) {
