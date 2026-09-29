@@ -2,8 +2,6 @@
 
 **Status:** early preview (v0.1.6). The product is still moving. This repository is private until the owner publishes it.
 
-Live preview: [safetybot.julpukka.com](https://safetybot.julpukka.com)
-
 SafetyBot is a small web app for field safety reports. A worker holds one button and speaks, adds up to three photos, or types a note. The app classifies the case, writes a short description, and fills only the fields the current schema asks for. An administrator can change those fields — and what the model should take from speech versus a photo — without shipping a new build.
 
 It is a reporting interface. It is not a medical, legal, or certified incident system.
@@ -90,6 +88,27 @@ npm start
 A fresh install starts with a demo SafetyBot API key. Rotate it on Admin → API before you expose the host. Do not copy that demo value into docs or issues.
 
 Copy `.env.example` to `.env.local` only if you want a server-side model key. Most people paste the model key in Admin → API instead. Do not commit `.env`, `.env.local`, or `data/`.
+
+## What it costs
+
+AI cost at **200,000 reports / year**, half spoken (25 seconds each) and half one photo. List prices, September 2026. Tokens in the extract step: about 1,200 input + 350 output on a voice case; about 2,000 input + 350 output on a photo case. Hosting and people cost more than the models.
+
+| Stack | Speech | Extract | Year | Per case | Per month |
+| --- | --- | --- | --- | --- | --- |
+| xAI Voice Transcribe REST + Grok 4.1 Fast | $69 | $99 | **$170** | $0.0008 | $14 |
+| OpenAI mini-transcribe + GPT-4o-mini | $125 | $90 | **$215** | $0.0011 | $18 |
+| Azure Speech batch + Azure GPT-4o-mini | $125 | $90 | **$215** | $0.0011 | $18 |
+| Azure Speech batch + Azure GPT-4.1-mini | $125 | $240 | **$365** | $0.0018 | $30 |
+| OpenAI Whisper + GPT-4.1-mini | $250 | $240 | **$490** | $0.0025 | $41 |
+| Azure Whisper + Azure GPT-4.1-mini | $250 | $240 | **$490** | $0.0025 | $41 |
+| xAI Voice Transcribe REST + Grok 4.3 | $69 | $575 | **$640** | $0.0032 | $54 |
+| xAI Voice Transcribe REST + Grok 4.6 (app default) | $69 | $1,060 | **$1,130** | $0.0057 | $94 |
+| OpenAI Whisper + GPT-4.1 | $250 | $1,200 | **$1,450** | $0.0073 | $121 |
+| Azure Speech real-time + Azure GPT-4.1 | $694 | $1,200 | **$1,890** | $0.0095 | $158 |
+
+Speech is cheap on xAI REST and on Azure **batch**. Azure **real-time** Speech ($1/hour) is what makes a Microsoft stack expensive. Pick Azure when you need a Microsoft tenant or a data zone, not because the tokens are cheaper.
+
+Two photos on every picture case, or 45-second voice clips, moves the year by a few hundred dollars — still not the dominant cost. Vendor list prices change; treat this as an order-of-magnitude guide.
 
 ## Where data lives
 
