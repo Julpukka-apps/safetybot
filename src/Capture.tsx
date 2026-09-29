@@ -107,8 +107,17 @@ export function Capture() {
     void navigate.push("/draft");
   }
 
+  async function writeFromPhoto(all: string[]) {
+    setPhase("writing");
+    setError("");
+    const logic = loadLogic();
+    const extraction = await extractReport({ transcript: "", photos: all, logic, language: spoken });
+    saveCapture({ transcript: "", photos: all, language: spoken, extraction });
+    void navigate.push("/draft");
+  }
+
   async function onPhotos(list: FileList | null) {
-    if (!list?.length) return;
+    if (!list?.length || phase === "writing") return;
     const room = 3 - photos.length;
     const next: string[] = [];
     for (const file of [...list].slice(0, room)) {
@@ -118,8 +127,11 @@ export function Capture() {
         setError("badPhoto");
       }
     }
-    setPhotos((current) => [...current, ...next].slice(0, 3));
     if (fileRef.current) fileRef.current.value = "";
+    if (!next.length) return;
+    const all = [...photos, ...next].slice(0, 3);
+    setPhotos(all);
+    await writeFromPhoto(all);
   }
 
   const gated = requireSignIn && !session;

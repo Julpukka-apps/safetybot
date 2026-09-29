@@ -105,7 +105,10 @@ export async function extractReport(input: {
     });
     if (!response.ok) {
       const demo = fallback();
-      demo.note = "The AI did not answer. Filled a draft from your words.";
+      demo.note =
+        input.photos.length && !input.transcript.trim()
+          ? "The photo is attached. The AI did not read the hazards."
+          : "The AI did not answer. Filled a draft from your words.";
       return demo;
     }
     const body = (await response.json()) as { extraction?: Extraction };
@@ -117,7 +120,10 @@ export async function extractReport(input: {
     };
   } catch {
     const demo = fallback();
-    demo.note = "The AI did not answer. Filled a draft from your words.";
+    demo.note =
+      input.photos.length && !input.transcript.trim()
+        ? "The photo is attached. The AI did not read the hazards."
+        : "The AI did not answer. Filled a draft from your words.";
     return demo;
   }
 }

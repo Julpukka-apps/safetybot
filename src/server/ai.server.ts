@@ -2,7 +2,7 @@ import {
   buildExtractPrompt,
   buildExtractSchema,
   sanitizeExtraction,
-  wantsPhotoExtract,
+  photoCaptureBrief,
   type Logic,
 } from "@/schema";
 
@@ -121,11 +121,12 @@ export async function extractWithGrok(input: {
   if ((input.ai.provider === "azure" || input.ai.provider === "compatible") && !input.ai.baseUrl.trim()) {
     return { ok: false, error: "no key" };
   }
-  const photos = wantsPhotoExtract(input.logic) ? input.photos.slice(0, 3) : [];
+  const photos = input.photos.slice(0, 3);
+  const brief = photoCaptureBrief(input.transcript, photos.length);
   const content: Array<Record<string, unknown>> = [
     {
       type: "text",
-      text: `Transcript:\n${input.transcript.trim() || "(none)"}\nPhotos attached: ${photos.length}`,
+      text: `Transcript:\n${input.transcript.trim() || "(none)"}\nPhotos attached: ${photos.length}${brief ? `\n${brief}` : ""}`,
     },
   ];
   for (const url of photos) {
@@ -160,7 +161,7 @@ export async function extractWithGrok(input: {
         json_schema: { name: "safetybot_report", strict: true, schema },
       },
     }),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(photos.length ? 60000 : 30000),
   });
   if (!response.ok) {
     response = await fetch(endpoint, {
@@ -170,7 +171,7 @@ export async function extractWithGrok(input: {
         ...chatBody,
         response_format: { type: "json_object" },
       }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(photos.length ? 60000 : 30000),
     });
   }
   if (!response.ok) return { ok: false, error: `extract ${response.status}` };

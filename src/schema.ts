@@ -816,6 +816,22 @@ export function wantsPhotoExtract(logic: Logic): boolean {
   return logic.fields.some((item) => item.extract_from === "photo" || item.extract_from === "both");
 }
 
+/** What to tell the model about attached photos. A photo with no speech is the whole report. */
+export function photoCaptureBrief(transcript: string, photoCount: number): string {
+  if (photoCount <= 0) return "";
+  if (transcript.trim()) {
+    return "Photos are attached. Use them for every field you can see, especially those marked extract photo or both. Name hazards that are visible. Do not invent an injury from an unclear photo.";
+  }
+  return [
+    "The worker did not speak. The photo is the whole report.",
+    "Identify visible hazards: unsafe conditions, missing guards, spills, blocked exits, damaged equipment, bad housekeeping, and anyone in the line of fire.",
+    "Fill description and the other fields from what is actually visible.",
+    "Prefer safety_observation when you see a hazard and no injury.",
+    "Do not invent an injury, a name, an equipment number, or a cause you cannot see.",
+    "If the photo is too unclear to name a hazard, say that in description and leave the other fields null.",
+  ].join(" ");
+}
+
 const CASE_PATTERNS: Record<string, RegExp> = {
   injury: /\b(injur\w*|hurt|wounded|bleeding|blood|fracture|first aid|fatality|fatal|ambulance|unconscious)\b/i,
   near_miss: /\b(near miss|almost|nearly|could have|close call)\b/i,

@@ -449,6 +449,7 @@ function draftNote(note: string | undefined, source: string, translate: (key: st
   if (!note || note === "Drafted from your words.") {
     return source === "demo" ? translate("draftedWords") : translate("draftedAi");
   }
+  if (note.startsWith("The photo is attached")) return translate("photoUnread");
   if (
     note.startsWith("The AI did not answer") ||
     note.startsWith("The model returned") ||
