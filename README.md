@@ -10,13 +10,43 @@ It is a reporting interface. It is not a medical, legal, or official incident sy
 
 ## Screenshots
 
-Dummy copy only. Not live reports.
+Dummy copy only. Not live injury reports.
 
-![Capture](docs/screenshots/capture.png)
+Worker capture — hold to talk, add a photo, or type:
 
-![Draft](docs/screenshots/draft.png)
+![Capture](docs/screenshots/capture.jpg)
 
-![Admin](docs/screenshots/admin.png)
+Draft after a photo — case type chips and generated description:
+
+![Draft](docs/screenshots/draft.jpg)
+
+Admin sign-in:
+
+![Admin login](docs/screenshots/admin-login.jpg)
+
+Admin → Logic — classification rules, extract prompt, photo reading prompt:
+
+![Admin logic](docs/screenshots/admin-logic.jpg)
+
+Admin → API — Grok / OpenAI / Azure model key (not the SafetyBot API key):
+
+![Admin API](docs/screenshots/admin-api.jpg)
+
+Admin → Reports:
+
+![Admin reports](docs/screenshots/admin-reports.jpg)
+
+Admin → Access — organization list:
+
+![Admin access](docs/screenshots/admin-access.jpg)
+
+Admin → Access — optional Microsoft / Google sign-in:
+
+![Admin sign-in settings](docs/screenshots/admin-sso.jpg)
+
+Language list (English, Finnish, and the other UI languages):
+
+![Languages](docs/screenshots/languages.jpg)
 
 ## What you get
 
