@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ReportForm } from "@/Draft";
 import { useI18n } from "@/i18n";
-import { pushConfig } from "@/remote";
+import { pullLogic, pushConfig } from "@/remote";
 import {
   SAMPLE_TRANSCRIPT,
   defaultLogic,
@@ -22,16 +22,16 @@ const EXTRACTS: ExtractFrom[] = ["speech", "photo", "both", "none"];
 const OPS: ShowOp[] = ["eq", "neq", "in", "not_in"];
 
 const SAMPLES = [
-  { id: "esc", label: "Escalator", text: SAMPLE_TRANSCRIPT },
+  { id: "edge", label: "Open edge", text: SAMPLE_TRANSCRIPT },
   {
-    id: "ksc",
-    label: "Supply chain",
-    text: "Supply chain stop and go. Work stopped because the truck was not secured. Employee.",
+    id: "scaffold",
+    label: "Scaffold",
+    text: "Unstable scaffold on the third floor. Subcontractor. Nobody was hurt. I stopped work and called the supervisor.",
   },
   {
-    id: "nbs",
-    label: "New building",
-    text: "New building major project. Idea: add a better barricade at the landing door.",
+    id: "idea",
+    label: "Idea",
+    text: "Idea: add a better barricade around the excavation. Worker.",
   },
 ];
 
@@ -42,7 +42,15 @@ export function AdminLogic() {
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState("");
   const [saved, setSaved] = useState("");
-  const [sampleId, setSampleId] = useState("esc");
+  const [sampleId, setSampleId] = useState("edge");
+
+  useEffect(() => {
+    void pullLogic().then((current) => {
+      if (!current) return;
+      setLogic(current);
+      setJsonText(JSON.stringify(current, null, 2));
+    });
+  }, []);
 
   const sample = SAMPLES.find((item) => item.id === sampleId) ?? SAMPLES[0];
   const preview = useMemo(() => demoExtract(sample.text, logic, 0), [sample.text, logic]);
@@ -59,7 +67,7 @@ export function AdminLogic() {
     const stored = saveLogic(next);
     setLogic(stored);
     setSaved(message);
-    void pushConfig();
+    void pushConfig({ replaceLogic: true });
     return stored;
   }
 

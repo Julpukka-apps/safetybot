@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { WorkerColumn, WorkerHeader } from "@/App";
 import { useI18n } from "@/i18n";
 import { orgName, orgPath } from "@/org";
-import { fetchSession, publishReport, pushConfig, type SignedInUser } from "@/remote";
+import { fetchSession, publishReport, pullLogic, pushConfig, type SignedInUser } from "@/remote";
 import {
   applyDefaults,
   caseById,
@@ -50,7 +50,8 @@ export function Draft() {
   const [reporter, setReporter] = useState<SignedInUser | null>(null);
 
   useEffect(() => {
-    const current = loadLogic();
+    void (async () => {
+    const current = (await pullLogic()) ?? loadLogic();
     const capture = loadCapture();
     setLogic(current);
     setDraft(capture);
@@ -70,6 +71,7 @@ export function Draft() {
       setReporter(user);
       if (user?.org_id) setOrgId((current) => current || user.org_id || "");
     });
+    })();
   }, []);
 
   useEffect(() => {

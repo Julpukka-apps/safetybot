@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Camera, Mic } from "lucide-react";
 import { WorkerColumn, WorkerHeader, Wordmark } from "@/App";
 import { activeLanguage, useI18n } from "@/i18n";
-import { fetchSession, pushConfig, signOutSession, type SignedInUser } from "@/remote";
+import { fetchSession, pullLogic, pushConfig, signOutSession, type SignedInUser } from "@/remote";
 import { LANGUAGES } from "@/schema";
 import { loadLogic, loadSso, saveCapture } from "@/storage";
 import { extractReport, resizeImage, transcribeSpeech } from "@/xai";
@@ -35,6 +35,7 @@ export function Capture() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("sso") === "failed") setError("ssoFailed");
     void (async () => {
+      await pullLogic();
       await pushConfig();
       const sso = loadSso();
       setRequireSignIn(sso.requireSignIn);
@@ -71,7 +72,7 @@ export function Capture() {
     speechRef.current = null;
     recorderRef.current = null;
     const audio = await audioPromise;
-    const logic = loadLogic();
+    const logic = (await pullLogic()) ?? loadLogic();
     let text = transcriptRef.current.trim();
     if (audio && audio.size > 800) {
       const heard = await transcribeSpeech({
@@ -101,7 +102,7 @@ export function Capture() {
       return;
     }
     setPhase("writing");
-    const logic = loadLogic();
+    const logic = (await pullLogic()) ?? loadLogic();
     const extraction = await extractReport({ transcript: text, photos, logic, language: spoken });
     saveCapture({ transcript: text, photos, language: spoken, extraction });
     void navigate.push("/draft");
@@ -110,7 +111,7 @@ export function Capture() {
   async function writeFromPhoto(all: string[]) {
     setPhase("writing");
     setError("");
-    const logic = loadLogic();
+    const logic = (await pullLogic()) ?? loadLogic();
     const extraction = await extractReport({ transcript: "", photos: all, logic, language: spoken });
     saveCapture({ transcript: "", photos: all, language: spoken, extraction });
     void navigate.push("/draft");

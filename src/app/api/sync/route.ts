@@ -1,5 +1,5 @@
 import { authorize, json } from "@/server/http.server";
-import { saveStore } from "@/server/store.server";
+import { LOGIC_SEED, saveStore } from "@/server/store.server";
 import { normalizeOrg, normalizeSso } from "@/org";
 import { normalizeLogic, reportToRow, toSafetyReport, type SafetyReport } from "@/schema";
 
@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
   let body: {
     logic?: unknown;
+    replaceLogic?: boolean;
     reports?: SafetyReport[];
     webhookUrl?: string;
     webhookSecret?: string;
@@ -23,7 +24,10 @@ export async function POST(request: Request) {
     return json({ error: "invalid JSON" }, 400);
   }
   const store = auth.store;
-  if (body.logic) store.logic = normalizeLogic(body.logic);
+  if (body.replaceLogic === true && body.logic) {
+    store.logic = normalizeLogic(body.logic);
+    store.logicSeed = LOGIC_SEED;
+  }
   if (typeof body.webhookUrl === "string") store.webhookUrl = body.webhookUrl.trim();
   if (typeof body.webhookSecret === "string") store.webhookSecret = body.webhookSecret;
   if (Array.isArray(body.reports)) {

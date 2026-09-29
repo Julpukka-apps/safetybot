@@ -28,9 +28,11 @@ Priority order in the seed:
 
 ## Report field keys
 
-The seed defines these field keys:
+The seed is a construction-site set. Only `description` is required.
 
-`incident_datetime`, `description`, `immediate_action`, `business_unit`, `party_involved`, `equipment`, `precise_location`, `equipment_number`, `job_site_name`, `major_project`, `subcontractor_company`, `stop_and_go`, `why_work_stopped`, `classifier`, `confidential`, `what_happened`, `what_could_have_happened`, `potential_severity`, `injured_role`, `severity`, `body_parts`, `nature_of_injury`, `what_was_done_well`, `current_pain`, `proposed_change`, `expected_benefit`.
+`description`, `immediate_action`, `site`, `area`, `activity`, `hazard`, `who`, `company`, `incident_datetime`, `what_happened`, `what_could_have_happened`, `potential_severity`, `injured_role`, `severity`, `body_parts`, `nature_of_injury`, `what_was_done_well`, `current_pain`, `proposed_change`, `expected_benefit`.
+
+There is no elevator, escalator, door, end-user, or precise-location field. `company` shows only when `who` is Subcontractor. Case-specific fields show only for that case.
 
 A stored report also carries `id`, `case_type`, `created_at`, `photos`, `transcript`, `language`, `org_id`, `org_name`, and `org_path`. `reportToRow()` in `src/schema.ts` is what `GET /api/reports` returns.
 

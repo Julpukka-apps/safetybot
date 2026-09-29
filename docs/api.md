@@ -30,7 +30,7 @@ The bearer key is the `apiKey` in `data/safetybot-store.json`, shown on Admin â†
 | GET | `/api/organization` | Organization tree |
 | PUT | `/api/organization` | Replaces the tree from JSON or plain text |
 | DELETE | `/api/organization` | Clears the tree |
-| POST | `/api/sync` | Writes logic, reports, webhook, organization, and SSO sent by Admin |
+| POST | `/api/sync` | Writes reports, webhook, organization, and SSO. Writes logic only when `replaceLogic` is true, which Admin save sends. A normal page open does not replace the saved fields |
 | PUT | `/api/auth/sso` | Saves SSO settings |
 
 `POST /api/reports` also calls `postWebhook`. The result is `sent`, `skipped`, or `failed`.

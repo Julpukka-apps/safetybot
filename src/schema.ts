@@ -225,43 +225,6 @@ export const LANGUAGES: { id: string; label: string; speech: string }[] = [
   { id: "vi", label: "Tiếng Việt", speech: "vi-VN" },
 ];
 
-const ELEVATOR_LOCS = [
-  "In shaft",
-  "On top of elevator car",
-  "In pit",
-  "Inside elevator car",
-  "In machine room",
-  "Elevator lobby",
-  "Sill of the landing/Car door",
-  "Landing Door or Temporary Entrance Protection",
-  "Elevator other",
-];
-
-const ESCALATOR_LOCS = [
-  "In escalator pit",
-  "Entrance/Exit of escalator",
-  "Escalator lobby",
-  "In vicinity of escalator",
-  "Handrail of escalator",
-  "Escalator other",
-];
-
-const DOOR_LOCS = [
-  "Sill of the door",
-  "Vicinity of the door",
-  "Between door panels",
-  "Building door lobby",
-  "Door other",
-];
-
-const BU = {
-  ser: "Maintenance",
-  nbs: "New building",
-  mod: "Modernization",
-  ksc: "Supply chain",
-  adm: "Administration",
-} as const;
-
 const OLD_LABELS: Record<string, string> = {
   "Maintenance Business (SER)": "Maintenance",
   "New Building Solutions (NBS)": "New building",
@@ -280,9 +243,6 @@ function plainText(value: string): string {
     .trim();
 }
 
-const PARTIES = ["Employee", "Subcontractor", "Third party", "End user"] as const;
-const EQUIPMENT = ["Elevator", "Escalator", "Door", "Other", "Not applicable"] as const;
-
 function field(
   partial: Pick<Field, "key" | "label" | "type"> & Partial<Field>,
 ): Field {
@@ -296,19 +256,36 @@ function field(
   };
 }
 
+const HAZARDS = [
+  "Fall from height",
+  "Falling object",
+  "Collapse",
+  "Excavation",
+  "Electrical",
+  "Fire",
+  "Chemical",
+  "Slip or trip",
+  "Struck by",
+  "Caught in",
+  "Housekeeping",
+  "Other",
+] as const;
+
+const WHO = ["Worker", "Subcontractor", "Visitor", "Public"] as const;
+
 export const DEFAULT_PHOTO_PROMPT = [
   "Read the attached photos.",
-  "Identify visible hazards: unsafe conditions, missing guards, spills, blocked exits, damaged equipment, bad housekeeping, and anyone in the line of fire.",
+  "Identify visible construction hazards: missing guardrails, open edges, unstable scaffold, open excavation, lifting over people, poor housekeeping, missing protection, and anyone in the line of fire.",
   "Fill description and the other fields from what is actually visible.",
   "If the worker also spoke, treat the speech as what happened and use the photo to add hazards you can see.",
   "If there is no speech, the photo is the whole report. Prefer safety_observation when you see a hazard and no injury.",
-  "Do not invent an injury, a name, an equipment number, or a cause you cannot see.",
+  "Do not invent an injury, a name, a company, or a cause you cannot see.",
   "If the photo is too unclear to name a hazard, say that in description and leave the other fields null.",
 ].join(" ");
 
 export function defaultLogic(): Logic {
   const description_template =
-    "what / where / who / equipment / activity / hazard or event / immediate action / residual risk. Factual. No blame. User language.";
+    "what / where on site / who / activity / hazard / immediate action / residual risk. Construction site. Factual. No blame. User language.";
   return {
     schema_version: "1.0.0",
     app_name: "SafetyBot",
@@ -356,37 +333,29 @@ export function defaultLogic(): Logic {
       },
     ],
     classification_rules:
-      "Apply case_types in priority order. Never invent an injury from an unclear photo.",
+      "Apply case_types in priority order. Never invent an injury from an unclear photo. This is a construction site.",
     description_template,
     extract_system_prompt:
-      "You fill a SafetyBot report. Return only JSON matching the current field schema. Use only allowed enums. Unknown fields null. List missing requireds in ask_user. Classify case_type with confidence 0-1.",
+      "You fill a construction-site safety report. Return only JSON matching the current field schema. Use only allowed enums. Unknown fields null. Do not invent an injury. List missing requireds in ask_user. Classify case_type with confidence 0-1.",
     photo_prompt: DEFAULT_PHOTO_PROMPT,
     stt_keyterms: [
-      "elevator",
-      "escalator",
-      "shaft",
-      "pit",
-      "car top",
-      "machine room",
-      "landing door",
-      "handrail",
-      "comb plate",
-      "STOP AND GO",
-      "first aid",
+      "scaffold",
+      "excavation",
+      "harness",
+      "guardrail",
+      "crane",
+      "lifting",
+      "trench",
+      "hot work",
+      "PPE",
       "near miss",
       "subcontractor",
-      "modernization",
-      "maintenance",
+      "housekeeping",
+      "fall",
+      "collapse",
+      "concrete",
     ],
     fields: [
-      field({
-        key: "incident_datetime",
-        label: "When",
-        type: "datetime",
-        required: true,
-        extract_from: "none",
-        default: "now",
-      }),
       field({
         key: "description",
         label: "Description",
@@ -400,108 +369,59 @@ export function defaultLogic(): Logic {
         label: "Immediate action",
         type: "text",
         extract_from: "both",
-        hint_for_ai: "What was done right away to make it safe. Null if not said.",
+        hint_for_ai: "What was done right away to make it safe. Null if not said or not visible.",
       }),
       field({
-        key: "business_unit",
-        label: "Business unit",
-        type: "enum",
-        required: true,
-        extract_from: "speech",
-        enum_values: [BU.ser, BU.nbs, BU.mod, BU.ksc, BU.adm],
-      }),
-      field({
-        key: "party_involved",
-        label: "Party involved",
-        type: "enum",
-        required: true,
-        extract_from: "speech",
-        enum_values: [...PARTIES],
-      }),
-      field({
-        key: "equipment",
-        label: "Equipment",
-        type: "enum",
-        required: true,
-        extract_from: "both",
-        enum_values: [...EQUIPMENT],
-        show_if: { field: "business_unit", op: "not_in", value: [BU.ksc] },
-      }),
-      field({
-        key: "precise_location",
-        label: "Precise location",
-        type: "enum",
-        required: true,
-        extract_from: "both",
-        enum_values: [],
-        enum_map_field: "equipment",
-        enum_map: {
-          Elevator: ELEVATOR_LOCS,
-          Escalator: ESCALATOR_LOCS,
-          Door: DOOR_LOCS,
-        },
-        show_if: { field: "equipment", op: "in", value: ["Elevator", "Escalator", "Door"] },
-        hint_for_ai:
-          "Pick from the list that matches equipment. Elevator, Escalator, and Door each have their own locations.",
-      }),
-      field({
-        key: "equipment_number",
-        label: "Equipment number",
+        key: "site",
+        label: "Site",
         type: "text",
         extract_from: "both",
-        show_if: { field: "equipment", op: "in", value: ["Elevator", "Escalator", "Door"] },
+        hint_for_ai: "Construction site or project name. Null if unknown.",
       }),
       field({
-        key: "job_site_name",
-        label: "Job site",
+        key: "area",
+        label: "Area",
         type: "text",
-        extract_from: "speech",
+        extract_from: "both",
+        hint_for_ai: "Where on the site, in the worker's words: floor, zone, yard, excavation, scaffold. Null if unknown.",
       }),
       field({
-        key: "major_project",
-        label: "Major project",
+        key: "activity",
+        label: "Activity",
+        type: "text",
+        extract_from: "both",
+        hint_for_ai: "Work underway, such as lifting, excavation, scaffolding, hot work, or housekeeping. Null if unknown.",
+      }),
+      field({
+        key: "hazard",
+        label: "Hazard",
         type: "enum",
-        required: true,
-        extract_from: "speech",
-        enum_values: ["Yes", "No"],
-        show_if: { field: "business_unit", op: "in", value: [BU.nbs, BU.mod] },
+        extract_from: "both",
+        enum_values: [...HAZARDS],
+        hint_for_ai: "Main construction hazard. Null if unclear.",
       }),
       field({
-        key: "subcontractor_company",
-        label: "Subcontractor company",
-        type: "text",
-        extract_from: "speech",
-        show_if: { field: "party_involved", op: "eq", value: "Subcontractor" },
-      }),
-      field({
-        key: "stop_and_go",
-        label: "STOP AND GO",
+        key: "who",
+        label: "Who",
         type: "enum",
-        extract_from: "speech",
-        enum_values: ["Yes", "No"],
-        show_if: { field: "business_unit", op: "eq", value: BU.ksc },
+        extract_from: "both",
+        enum_values: [...WHO],
+        hint_for_ai: "Who was involved. Null if not known.",
       }),
       field({
-        key: "why_work_stopped",
-        label: "Why work stopped",
+        key: "company",
+        label: "Company",
         type: "text",
         extract_from: "speech",
-        show_if: { field: "stop_and_go", op: "eq", value: "Yes" },
+        show_if: { field: "who", op: "eq", value: "Subcontractor" },
+        hint_for_ai: "Subcontractor company name, only if spoken.",
       }),
       field({
-        key: "classifier",
-        label: "Classifier",
-        type: "text",
-        required: true,
+        key: "incident_datetime",
+        label: "When",
+        type: "datetime",
         extract_from: "none",
-        default: "Me",
-      }),
-      field({
-        key: "confidential",
-        label: "Confidential",
-        type: "boolean",
-        extract_from: "none",
-        default: false,
+        default: "now",
       }),
       field({
         key: "what_happened",
@@ -860,68 +780,29 @@ function has(text: string, pattern: RegExp): boolean {
   return pattern.test(text);
 }
 
-function guessBusiness(text: string): string | null {
-  if (has(text, /supply chain|\bksc\b/i)) return BU.ksc;
-  if (has(text, /new building|\bnbs\b/i)) return BU.nbs;
-  if (has(text, /moderni[sz]ation|\bmod\b/i)) return BU.mod;
-  if (has(text, /administration|\badm\b|\bkti\b|technology\s*&\s*innovation/i)) return BU.adm;
-  if (has(text, /maintenance|\bser\b/i)) return BU.ser;
-  return null;
-}
-
-function guessEquipment(text: string): string | null {
-  const found: { at: number; value: string }[] = [];
+function guessHazard(text: string): string | null {
   const pairs: [RegExp, string][] = [
-    [/\belevator\b/i, "Elevator"],
-    [/\bescalator\b/i, "Escalator"],
-    [/\bdoor\b/i, "Door"],
+    [/fall from height|open edge|guardrail|harness/i, "Fall from height"],
+    [/falling object|dropped|struck by/i, "Struck by"],
+    [/collapse|unstable/i, "Collapse"],
+    [/excavation|trench|hole/i, "Excavation"],
+    [/electric/i, "Electrical"],
+    [/fire|hot work|welding/i, "Fire"],
+    [/chemical|spill|fume/i, "Chemical"],
+    [/slip|trip|housekeeping|wet floor/i, "Slip or trip"],
+    [/scaffold/i, "Fall from height"],
+    [/caught in|pinch|crush/i, "Caught in"],
   ];
   for (const [pattern, value] of pairs) {
-    const match = pattern.exec(text);
-    if (match) found.push({ at: match.index, value });
+    if (pattern.test(text)) return value;
   }
-  found.sort((a, b) => a.at - b.at);
-  return found[0]?.value ?? null;
-}
-
-function guessParty(text: string): string | null {
-  if (has(text, /subcontractor|sub-contractor/i)) return "Subcontractor";
-  if (has(text, /end user|passenger|customer|public/i)) return "End user";
-  if (has(text, /third party|visitor|bystander/i)) return "Third party";
-  if (has(text, /employee|colleague|technician|our team|worker/i)) return "Employee";
   return null;
 }
 
-function guessLocation(text: string, equipment: string): string | null {
-  const table: Record<string, [RegExp, string][]> = {
-    Elevator: [
-      [/machine room/i, "In machine room"],
-      [/car top|top of (the )?elevator/i, "On top of elevator car"],
-      [/landing door|temporary entrance/i, "Landing Door or Temporary Entrance Protection"],
-      [/sill/i, "Sill of the landing/Car door"],
-      [/\blobby\b/i, "Elevator lobby"],
-      [/inside (the )?elevator|in the car\b/i, "Inside elevator car"],
-      [/\bpit\b/i, "In pit"],
-      [/\bshaft\b/i, "In shaft"],
-    ],
-    Escalator: [
-      [/handrail/i, "Handrail of escalator"],
-      [/comb plate/i, "Entrance/Exit of escalator"],
-      [/entrance|exit/i, "Entrance/Exit of escalator"],
-      [/\bpit\b/i, "In escalator pit"],
-      [/\blobby\b/i, "Escalator lobby"],
-      [/vicinity|near the escalator/i, "In vicinity of escalator"],
-    ],
-    Door: [
-      [/between (the )?door panels|door panels/i, "Between door panels"],
-      [/sill/i, "Sill of the door"],
-      [/\blobby\b/i, "Building door lobby"],
-      [/vicinity|near the door/i, "Vicinity of the door"],
-    ],
-  };
-  for (const [pattern, value] of table[equipment] ?? []) {
-    if (pattern.test(text)) return value;
-  }
+function guessWho(text: string): string | null {
+  if (has(text, /subcontractor|sub-contractor/i)) return "Subcontractor";
+  if (has(text, /visitor|public|passer-?by/i)) return "Visitor";
+  if (has(text, /worker|employee|colleague|crew/i)) return "Worker";
   return null;
 }
 
@@ -948,36 +829,20 @@ export function demoExtract(transcript: string, logic: Logic, photoCount = 0): E
   if (text) values.description = text;
   else if (photoCount) values.description = "Photo only. Add what happened.";
 
-  const business = guessBusiness(text);
-  if (business) values.business_unit = business;
-  const party = guessParty(text);
-  if (party) values.party_involved = party;
-  if (business === BU.ksc) {
-    if (has(text, /stop and go|stop & go|stopped work|work stopped/i)) values.stop_and_go = "Yes";
-  } else {
-    const equipment = guessEquipment(text);
-    if (equipment) values.equipment = equipment;
-    if (equipment && equipment !== "Other" && equipment !== "Not applicable") {
-      const location = guessLocation(text, equipment);
-      if (location) values.precise_location = location;
-      const number = text.match(/\b[A-Z]{1,5}-?\d{2,}\b/);
-      if (number) values.equipment_number = number[0];
-    }
-  }
-  if (business === BU.nbs || business === BU.mod) {
-    if (has(text, /major project/i)) values.major_project = has(text, /not a major|no major/i) ? "No" : "Yes";
-  }
-  if (party === "Subcontractor") {
+  const hazard = guessHazard(text);
+  if (hazard) values.hazard = hazard;
+  const who = guessWho(text);
+  if (who) values.who = who;
+  if (who === "Subcontractor") {
     const company = text.match(/subcontractor(?: company)?[:\s]+([A-Z][\w& .'-]{2,40})/);
-    if (company) values.subcontractor_company = company[1].trim();
+    if (company) values.company = company[1].trim();
   }
-  const site = text.match(/\b(?:job site|site|station|building)\s+([A-Z][\w .'-]{2,40})/);
-  if (site) values.job_site_name = site[1].trim().replace(/[.,]$/, "");
+  const site = text.match(/\b(?:job site|site|project)\s+([A-Z][\w .'-]{2,40})/);
+  if (site) values.site = site[1].trim().replace(/[.,]$/, "");
   const action = text.match(
     /(?:^|[.]\s*)((?:I |we )?(?:stopped|isolated|locked out|called|gave first aid|barricaded|shut down)[^.]+)/i,
   );
   if (action) values.immediate_action = action[1].trim();
-  if (values.stop_and_go === "Yes" && action) values.why_work_stopped = action[1].trim();
 
   if (classified.id === "near_miss") {
     values.what_happened = text;
@@ -1134,4 +999,4 @@ export function sanitizeExtraction(logic: Logic, raw: unknown, fallbackText: str
 }
 
 export const SAMPLE_TRANSCRIPT =
-  "Near miss at the escalator comb plate in the lobby. Maintenance Business. Employee. Nobody was hurt. I stopped the unit and called the supervisor. Equipment ESC-204, site Central Station.";
+  "Near miss at the open edge on level 3. Worker. Nobody was hurt. I stopped the lift and called the supervisor. Site North yard.";

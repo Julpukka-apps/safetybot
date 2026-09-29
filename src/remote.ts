@@ -1,11 +1,12 @@
 import type { OrgStructure, SessionUser, SsoConfig } from "@/org";
-import { toSafetyReport, type SafetyReport } from "@/schema";
+import { normalizeLogic, toSafetyReport, type Logic, type SafetyReport } from "@/schema";
 import {
   loadApiKey,
   loadLogic,
   loadReports,
   loadWebhook,
   saveApiKey,
+  saveLogic,
   saveOrg,
   saveReports,
   saveSso,
@@ -18,38 +19,54 @@ function authHeaders(): HeadersInit {
   };
 }
 
+export async function pullLogic(): Promise<Logic | null> {
+  try {
+    const response = await fetch("/api/schema", { headers: authHeaders() });
+    if (!response.ok) return null;
+    const logic = saveLogic(normalizeLogic(await response.json()));
+    return logic;
+  } catch {
+    return null;
+  }
+}
+
 export async function pushConfig(extra?: {
   rotateTo?: string;
   organization?: OrgStructure;
   sso?: SsoConfig;
+  replaceLogic?: boolean;
 }): Promise<{ apiKey: string; reports: SafetyReport[] } | null> {
   try {
     const webhook = loadWebhook();
+    const body: Record<string, unknown> = {
+      reports: loadReports(),
+      webhookUrl: webhook.url,
+      webhookSecret: webhook.secret,
+      rotateTo: extra?.rotateTo,
+      organization: extra?.organization,
+      sso: extra?.sso,
+    };
+    if (extra?.replaceLogic) {
+      body.logic = loadLogic();
+      body.replaceLogic = true;
+    }
     const response = await fetch("/api/sync", {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify({
-        logic: loadLogic(),
-        reports: loadReports(),
-        webhookUrl: webhook.url,
-        webhookSecret: webhook.secret,
-        rotateTo: extra?.rotateTo,
-        organization: extra?.organization,
-        sso: extra?.sso,
-      }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) return null;
-    const body = (await response.json()) as {
+    const payload = (await response.json()) as {
       apiKey: string;
       reports: SafetyReport[];
       organization?: OrgStructure;
       sso?: SsoConfig;
     };
-    if (body.apiKey) saveApiKey(body.apiKey);
-    if (Array.isArray(body.reports)) saveReports(body.reports);
-    if (body.organization) saveOrg(body.organization);
-    if (body.sso) saveSso(body.sso);
-    return body;
+    if (payload.apiKey) saveApiKey(payload.apiKey);
+    if (Array.isArray(payload.reports)) saveReports(payload.reports);
+    if (payload.organization) saveOrg(payload.organization);
+    if (payload.sso) saveSso(payload.sso);
+    return payload;
   } catch {
     return null;
   }

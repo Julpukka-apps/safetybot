@@ -19,9 +19,12 @@ import {
   toSafetyReport,
 } from "@/schema";
 
+export const LOGIC_SEED = "construction-1";
+
 export type Store = {
   apiKey: string;
   logic: Logic;
+  logicSeed: string;
   reports: SafetyReport[];
   webhookUrl: string;
   webhookSecret: string;
@@ -40,6 +43,7 @@ function emptyStore(): Store {
   return {
     apiKey: DEFAULT_API_KEY,
     logic: defaultLogic(),
+    logicSeed: LOGIC_SEED,
     reports: [],
     webhookUrl: "",
     webhookSecret: "",
@@ -53,7 +57,8 @@ function normalizeStore(value: unknown): Store {
   const base = emptyStore();
   if (!value || typeof value !== "object") return base;
   const raw = value as Partial<Store>;
-  const logic = normalizeLogic(raw.logic);
+  const rawSeed = typeof raw.logicSeed === "string" ? raw.logicSeed : "";
+  const logic = rawSeed === LOGIC_SEED ? normalizeLogic(raw.logic) : defaultLogic();
   const reports = Array.isArray(raw.reports)
     ? raw.reports
         .map((item) => toSafetyReport(item, logic))
@@ -63,6 +68,7 @@ function normalizeStore(value: unknown): Store {
   return {
     apiKey: typeof raw.apiKey === "string" && raw.apiKey.trim() ? raw.apiKey.trim() : base.apiKey,
     logic,
+    logicSeed: LOGIC_SEED,
     reports,
     webhookUrl: typeof raw.webhookUrl === "string" ? raw.webhookUrl : "",
     webhookSecret: typeof raw.webhookSecret === "string" ? raw.webhookSecret : "",
@@ -92,6 +98,7 @@ function metaOf(store: Store): string {
   return JSON.stringify({
     apiKey: store.apiKey,
     logic: store.logic,
+    logicSeed: store.logicSeed || LOGIC_SEED,
     webhookUrl: store.webhookUrl,
     webhookSecret: store.webhookSecret,
     organization: store.organization,
@@ -106,17 +113,25 @@ export function loadStore(): Store {
     if (!cached.organization) cached.organization = emptyOrg();
     if (!cached.sso) cached.sso = emptySso();
     if (!Array.isArray(cached.sessions)) cached.sessions = [];
+    if (!cached.logicSeed) cached.logicSeed = LOGIC_SEED;
     return cached;
   }
   try {
     const raw = readFileSync(FILE, "utf8");
-    const store = normalizeStore(JSON.parse(raw));
+    const parsed = JSON.parse(raw) as { logicSeed?: unknown };
+    const rawSeed = typeof parsed.logicSeed === "string" ? parsed.logicSeed : "";
+    const store = normalizeStore(parsed);
     const rows = readRows(store.logic);
     if (rows) store.reports = rows;
-    const meta = metaOf(store);
-    const lines = store.reports.map((item) => JSON.stringify(reportToRow(item, store.logic))).join("\n");
-    lastWritten = `${meta}\n${lines}`;
     bag.__safetybotStore = store;
+    if (rawSeed !== LOGIC_SEED) {
+      lastWritten = "";
+      saveStore(store);
+    } else {
+      const meta = metaOf(store);
+      const lines = store.reports.map((item) => JSON.stringify(reportToRow(item, store.logic))).join("\n");
+      lastWritten = `${meta}\n${lines}`;
+    }
   } catch {
     bag.__safetybotStore = emptyStore();
   }
