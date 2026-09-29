@@ -1,239 +1,236 @@
 # SafetyBot in a Microsoft company
 
-This is the path for a larger company that already lives in Microsoft 365, Entra ID, Azure, and an existing safety / EHS system.
+This is the path for a large company that already runs Microsoft Entra, Azure, Teams, and Power Platform, and already has its own safety / EHS system of record.
 
-SafetyBot is the **worker interface**. It is not the system of record. The host keeps at most **200 reports**. At company volume you must pull or push every case into your own safety system and treat SafetyBot as a short buffer.
+SafetyBot is the worker interface: hold to talk, photos, typed notes, an admin-editable form. It is not the system of record. The company system keeps the official case.
 
-Do not put tenant secrets, admin passwords, or model keys in git.
+Do not put real injuries on a public demo host. Run your own instance.
 
-## What you are assembling
+## What stays in SafetyBot vs Microsoft
 
-```
-Worker phone (SafetyBot PWA)
-  Entra sign-in (optional)
-  hold / photo / type
-       |
-       | Azure Speech + Foundry chat model
-       v
-  /draft  — worker checks the fields
-       |
-       | POST /api/reports
-       v
-  SafetyBot host  (buffer, schema, API key)
-       |
-       | webhook  or  GET /api/reports
-       v
-  Your safety / EHS system
-  (and optionally Dataverse, Power Automate, Copilot Studio)
-```
-
-Office staff can use Teams + Copilot Studio as a **second** channel. Do not replace the field PWA with a chat agent. Hold-to-talk, three photos, and the offline queue live in SafetyBot.
-
-## 1. Roles and environments
-
-| Role | Tool |
+| Job | Where |
 | --- | --- |
-| Worker | SafetyBot `/` on a phone |
-| Site supervisor | SafetyBot `/draft` + your EHS inbox |
-| Safety admin | SafetyBot `/admin` (Logic, Access) |
-| Integration | `GET /api/reports`, webhook, `GET /api/schema` |
-| Identity | Microsoft Entra ID |
-| Models | Azure AI Foundry / Azure OpenAI |
-| Speech | Azure Speech batch or Azure Whisper |
-| Host | Azure App Service, Container Apps, or a VM behind Front Door |
-| Optional office UI | Power Apps, Copilot Studio, Dataverse |
+| Worker capture (mic, camera, offline queue) | SafetyBot PWA |
+| Form fields, case types, extract rules | SafetyBot Admin → Logic |
+| Identity | Microsoft Entra |
+| Speech + extract models | Azure AI Foundry / Azure OpenAI + Azure Speech |
+| Hosting | Azure App Service, Container Apps, or a VM behind Application Gateway |
+| Official case file | The company's EHS / Synergi / Intelex / SAP / custom system |
+| Office chat in Teams | Optional Copilot Studio agent that calls the SafetyBot API |
 
-Use three hosts if you can: **dev**, **test**, **prod**. Each has its own admin password, API key, model deployment, and webhook URL. Do not reuse the public demo.
+Do not rebuild the field screen inside Copilot Studio. Studio is a Teams channel, not a glove-friendly capture app.
 
-## 2. Host SafetyBot on Azure
+```
+Phone (SafetyBot)
+  → Entra sign-in (optional but recommended)
+  → Azure Speech + Foundry chat model
+  → Worker checks /draft → Submit
+  → POST /api/reports
+       ├─ webhook → Power Automate / Logic Apps → EHS API
+       └─ EHS job pulls GET /api/reports?since=...
+```
 
-1. Clone the repo on a build agent. Node.js 20+.
-2. `npm ci && npm run build && npm start` listens on `0.0.0.0:8082`.
-3. Put HTTPS in front (Azure Front Door, Application Gateway, or Container Apps ingress). The microphone and camera need a secure context.
-4. Persist `data/` on a disk or Azure Files share:
-   - `data/safetybot-store.json` — schema, API key, org tree, SSO
-   - `data/safetybot-reports.jsonl` — last 200 submitted reports
-5. Restrict inbound traffic: company VPN, Private Link, or Front Door + Entra. Do not leave `/admin` on the open internet with a first-run password.
+## 1. Land the host in Azure
 
-First boot on that host:
+Typical company pattern:
 
-- Change the admin password.
+1. App Registration in Entra for the website (single-tenant).
+2. App Service or Container Apps in the company subscription, private network if required.
+3. HTTPS certificate on the company domain (`safety.contoso.com`). Mic and camera need HTTPS.
+4. Persistent disk or Azure Files for `data/safetybot-store.json` and `data/safetybot-reports.jsonl`.
+5. Key Vault for the SafetyBot API key rotation is optional; at minimum the keys live in App Settings, not in git.
+
+```bash
+npm run build
+npm start   # 0.0.0.0:8082 behind the reverse proxy
+```
+
+First-run on that host:
+
+- Change the admin password immediately.
 - Rotate the SafetyBot API key on Admin → API.
-- Store the model key in App Settings / Key Vault, not in the browser of a shared phone.
+- Do not leave the values that shipped in source.
+
+The host keeps **at most 200 reports**. The EHS connector must copy each case out. SafetyBot is a short buffer, not the archive.
 
 Checklist: [self-host.md](self-host.md).
 
-## 3. Company models (Foundry)
+## 2. Sign-in with Microsoft Entra
 
-“Copilot models the company already paid for” means a **chat-completions deployment** in Azure AI Foundry, not the Microsoft 365 Copilot chat box.
+Admin → Access → Microsoft Entra / Microsoft 365.
 
-1. In Foundry, deploy the approved vision-capable chat model (often GPT-4o-mini or GPT-4.1-mini).
-2. Copy the **deployment name** and the chat completions URL:
+1. In Entra, register a single-tenant web app.
+2. Redirect URI: `https://safety.contoso.com/api/auth/microsoft/callback`
+3. Paste **Tenant id** and **Application (client) id** into SafetyBot.
+4. Turn on **Require sign-in before a report** if only company accounts may file.
+5. Save.
 
+Workers then open `/`, sign in, and the report stores `reporter_email`, `reporter_name`, and the organization path when you have uploaded the org list.
+
+App roles: keep `/admin` for the safety team only. Workers never need Admin → Reports on a shared phone.
+
+## 3. Company models (Foundry / Azure OpenAI)
+
+“Copilot models the company already paid for” means a **deployment in Azure AI Foundry**, not the Microsoft 365 Copilot chat box. M365 Copilot cannot be SafetyBot's extract API.
+
+1. In Foundry, deploy the approved chat model (often GPT-4o-mini or GPT-4.1-mini).
+2. Copy the **deployment name** and a chat-completions URL:
    `https://{resource}.openai.azure.com/openai/deployments/{deployment}/chat/completions?api-version=2024-10-21`
-
-3. In SafetyBot Admin → API:
+3. On the SafetyBot host, Admin → API:
    - Service: Azure
    - Address: that URL
    - Model: the deployment name
-   - Key: from Key Vault / App Settings on the host
+   - Key: the tenant key, stored as a server setting when you can. Do not paste it onto every worker phone.
 
-4. Speech: Azure Speech **batch** (~$0.18/h) or Azure Whisper (~$0.36/h). Avoid Azure Speech real-time ($1/h) at high volume.
+Speech: Azure Speech **batch** (~$0.18/h) or Azure Whisper (~$0.36/h). Avoid Azure Speech real-time ($1/h) at high volume.
 
-SafetyBot extract still uses Admin → Logic (fields, `extract_from`, case types). The Foundry model only fills that schema. Do not duplicate the field list inside Copilot Studio topics.
+Today `/api/ai/transcribe` talks to Grok Voice or OpenAI-style STT. It does **not** call Azure Speech by itself. For a Microsoft-only tenant either:
 
-Cost order of magnitude: [README What it costs](../README.md#what-it-costs).
+- keep Grok Voice for STT and Azure for extract, or
+- add a small adapter that sends the audio blob to Azure Speech and returns `{ text }`, or
+- start with photo + type only until that adapter exists.
 
-## 4. Entra sign-in
+Cost order of magnitude at 200,000 cases: see the table in the README.
 
-Admin → Access → Sign-in.
+## 4. Organization list
 
-1. Register an app in the company tenant.
-2. Redirect URI: `https://{safetybot-host}/api/auth/microsoft/callback`
-3. Paste **tenant id** and **application (client) id** into SafetyBot.
-4. Turn on “Require sign-in before a report” when the company wants named reporters.
-5. Each submitted row then carries `reporter_email` and `reporter_name`.
+Admin → Access accepts a tree: `id,name,parent_id,type`. Each new report can be filed against one place. The same list is readable at `GET /api/organization` with the bearer key so the EHS system can map site codes.
 
-Workers need the phone to reach that callback once. Offline capture can continue after a cached session; a worker who never signed in cannot file if the gate is on.
+## 5. Get the data into the company safety system
 
-Optional: Intune managed home-screen shortcut to the HTTPS origin. The app is a PWA, not a store binary.
-
-## 5. Organization tree
-
-Admin → Access accepts a list of places (`id,name,parent_id,type`). Each report can be tagged with `org_id`, `org_name`, `org_path`.
-
-You can also replace the tree from an integration:
-
-```bash
-curl -sS -X PUT "$ORIGIN/api/organization" \
-  -H "Authorization: Bearer $SAFETYBOT_API_KEY" \
-  -H "Content-Type: text/plain" \
-  --data-binary @sites.csv
-```
-
-Keep site master data in the company system. Push a copy into SafetyBot so the worker picker stays small.
-
-## 6. Get data into the company safety system
-
-Two patterns. Use **both** if you can: webhook for “just submitted”, poll for “we missed one”.
+Two supported patterns. Use **both** if the webhook can miss a packet: push on submit, pull on a timer to catch up.
 
 ### A. Webhook (push)
 
 Admin → API → “Also send each report to”.
 
-- URL: your HTTPS listener (Azure Function, Logic App, Power Automate HTTP trigger, or the EHS inbound API).
-- Shared secret: sent as header `x-safetybot-secret`.
-- Method: `POST`
-- Body: one report **row** (flat JSON: meta columns + one key per Logic field).
-- Timeout: **8 seconds**. If your EHS call is slower, accept on the Function and enqueue.
+- URL: your Power Automate / Logic Apps HTTPS endpoint, or the EHS inbound API.
+- Shared secret: a long random string. SafetyBot sends it as `x-safetybot-secret`.
+- Timeout: 8 seconds. If the EHS API is slow, land on Logic Apps first, then call EHS.
 
-`POST /api/reports` response includes `webhook`: `sent`, `skipped`, or `failed`. A failed webhook still stored the report on the SafetyBot host.
+On each Submit, SafetyBot POSTs the **flattened report row** (JSON). `POST /api/reports` returns `{ webhook: "sent" | "skipped" | "failed" }`.
 
-### B. Pull API
+Power Automate shape:
+
+1. Trigger: When an HTTP request is received (schema = report row).
+2. Condition: header `x-safetybot-secret` matches a secret in Key Vault.
+3. Parse JSON.
+4. HTTP action to the EHS API, or Create a row in Dataverse, then a second flow to EHS.
+5. Return 200 quickly.
+
+### B. Pull API (poll)
+
+Store the SafetyBot API key in Key Vault. The integration account calls:
 
 ```bash
-export ORIGIN=https://safetybot.example.com
+export ORIGIN=https://safety.contoso.com
 export SAFETYBOT_API_KEY='rotated key from Admin → API'
 
-# health, no auth
 curl -sS "$ORIGIN/api/health"
 
-# new rows since last cursor
-curl -sS "$ORIGIN/api/reports?since=2026-09-29T00:00:00.000Z" \
-  -H "Authorization: Bearer $SAFETYBOT_API_KEY"
-
-# one case type
-curl -sS "$ORIGIN/api/reports?case_type=injury" \
-  -H "Authorization: Bearer $SAFETYBOT_API_KEY"
-
-# one site
-curl -sS "$ORIGIN/api/reports?org_id=SITE42" \
-  -H "Authorization: Bearer $SAFETYBOT_API_KEY"
-
-# current field schema (map columns)
 curl -sS "$ORIGIN/api/schema" \
+  -H "Authorization: Bearer $SAFETYBOT_API_KEY"
+
+curl -sS "$ORIGIN/api/reports?since=2026-09-01T00:00:00.000Z" \
   -H "Authorization: Bearer $SAFETYBOT_API_KEY"
 ```
 
-Wrong key → `401`. Store the last successful `created_at` as `since` for the next job.
+Useful query flags:
 
-Because the host only keeps 200 rows, the poller must run often enough that nothing ages out before you copy it. For 200,000 cases a year that is many per hour — **prefer the webhook**, use poll as a safety net.
-
-### C. Power Automate / Logic Apps
-
-Typical company flow:
-
-1. HTTP trigger receives the webhook body.
-2. Check `x-safetybot-secret`.
-3. Map `case_type`, `description`, `org_path`, `reporter_email`, photos.
-4. Create a row in Dataverse **or** call the EHS REST API.
-5. If photos are data URLs, write them to SharePoint / Blob and store the URL in EHS. Do not keep base64 in Dataverse long term.
-
-Custom connector against `$ORIGIN/api/reports` also works for a scheduled pull.
-
-### D. Copilot Studio (office only)
-
-A Teams agent can ask “file an observation” or “list yesterday’s near misses”.
-
-- Prompts → connect the **same** Foundry chat-completions deployment.
-- Action: HTTP POST to your EHS, or to SafetyBot `POST /api/reports` with the bearer key.
-- File upload works on Teams and the Studio test pane. Do not rely on Microsoft 365 Copilot chat to pass site photos.
-- Do not auto-send Injury from the agent. Keep a human check.
-
-## 7. Report row you will receive
-
-Every integration should treat these meta columns as stable:
-
-| Field | Meaning |
+| Query | Effect |
 | --- | --- |
-| `id` | Stable report id |
-| `created_at` | ISO time |
-| `case_type` | `injury`, `near_miss`, `good_practice`, `improvement_idea`, `safety_observation` |
-| `case_label` | Display label |
-| `language` | UI / speech language id |
-| `source` | `grok` or `demo` |
-| `transcript` | Worker words |
-| `first_line` | Short preview |
-| `photo_count` | Number of photos |
-| `org_id` / `org_name` / `org_path` | Place |
-| `reporter_email` / `reporter_name` | Entra profile when sign-in is on |
+| `since` | ISO time; rows at or after that stamp |
+| `case_type` | Exact id: `injury`, `near_miss`, `good_practice`, `improvement_idea`, `safety_observation` |
+| `org_id` | One site from the organization tree |
 
-All other keys come from Admin → Logic (`description`, `hazard`, …). Read `GET /api/schema` when Logic changes so your mapper does not go stale.
+Wrong key → `401` `{ "error": "Unauthorized" }`.
 
-Photos may appear as data URLs on the worker device. The JSONL on the host may store a count only. Design the EHS mapping to accept either a URL or “photo held on the phone / not in the API”.
+A typical Logic App recurrence: every 5 minutes, `since` = last successful watermark stored in Dataverse or Blob.
+
+`GET /api/schema` lets the EHS mapper notice new fields after Admin → Logic is saved. Do not hard-code field keys in the flow if the safety team will add columns.
+
+## 6. What a report row looks like
+
+The list endpoint returns flattened rows, not nested `values`. Stable columns plus one column per Logic field:
+
+```json
+{
+  "id": "r_01J…",
+  "created_at": "2026-09-29T12:04:11.000Z",
+  "case_type": "safety_observation",
+  "case_label": "Observation",
+  "confidence": 0.82,
+  "language": "en",
+  "source": "grok",
+  "transcript": "Oil on the scaffold. I wiped it.",
+  "first_line": "Oil on the scaffold at level 3.",
+  "photo_count": 1,
+  "org_id": "site-14",
+  "org_name": "North yard",
+  "org_path": "Region / North yard",
+  "reporter_email": "ada@contoso.com",
+  "reporter_name": "Ada Example",
+  "description": "Oil on the scaffold at level 3. Wiped immediately.",
+  "immediate_action": "Wiped the oil",
+  "site": "North yard",
+  "area": "Level 3 scaffold",
+  "activity": "Housekeeping",
+  "hazard": "Slip or trip",
+  "who": "Worker"
+}
+```
+
+Photos are not on the list row (`photo_count` only). Treat SafetyBot as the structured case. If the EHS system needs the JPEG, add that as a later upload path; do not expect the poll payload to carry three data-URL images.
+
+Map `case_type` to the EHS case types. Map `org_id` to the company site code. Injury rows still require the worker confirm step in SafetyBot before Submit.
+
+## 7. Dataverse and Power Platform (optional buffer)
+
+If EHS cannot take the webhook on day one:
+
+1. Dataverse table `safetybot_report` with columns matching the row above.
+2. Power Automate: webhook → Create a new row.
+3. Second flow: when a row is created → HTTP to EHS, then set `exported_at`.
+4. Safety team can read the table in a model-driven app while EHS is catching up.
+
+Copilot Studio is optional on top of that table for office staff (“file a safety report” in Teams). Point its HTTP tool at `POST /api/reports` with the same bearer key, or at the Dataverse table. Do not give Studio the Foundry key in the agent instructions.
 
 ## 8. Security baseline for a company tenant
 
-- HTTPS only. HSTS at the front door.
-- Admin password unique to that host. Not the value that shipped in source.
-- SafetyBot API key rotated and stored in Key Vault. Used only by the integration identity.
-- Model key on the server, not on every worker phone.
-- Entra sign-in for named reporting.
-- Webhook URL allow-listed; verify `x-safetybot-secret`.
+- HTTPS only. HSTS on the gateway.
+- Entra sign-in on for workers.
+- Admin password unique and not in git.
+- SafetyBot API key rotated; only the integration identity knows it.
+- Foundry key on the host, not in the public repo and not in every phone.
+- Webhook secret checked before any EHS write.
 - Do not log transcripts, photos, or `x-ai-*` headers.
-- Retention lives in the EHS system. Wipe SafetyBot `data/safetybot-reports.jsonl` on a schedule after a successful copy.
-- Public demo hosts must never receive real injuries.
+- Private network or IP allowlist if the EHS team requires it.
+- Retention lives in EHS. Wipe or rotate `data/safetybot-reports.jsonl` after a successful export.
+- Intune can pin the PWA on managed phones; the first open must be online so the shell caches.
 
-More on the product bar: the README disclaimer and [self-host.md](self-host.md).
+SafetyBot is not a certified audit trail. The EHS system owns legal retention.
 
-## 9. Rollout sequence
+## 9. Rollout
 
-1. Stand up a **test** host on Azure. Change admin password and API key.
-2. Point Admin → API at the company Foundry deployment. Confirm one typed dummy case.
-3. Confirm hold-to-talk + one photo. Check the draft fields against Logic.
-4. Turn on Entra in test. File as a test user. Confirm `reporter_email`.
-5. Build the webhook Function / Logic App. Map one Observation and one Near miss into the EHS sandbox.
-6. Add a poller on `since=` as backup. Prove a missed webhook is recovered.
-7. Pilot one site (tens of workers), dummy data only, then live hazards with the safety team’s rule for Injury.
-8. Only then open prod, new keys, new webhook, Intune shortcut.
+| Stage | What |
+| --- | --- |
+| 0. Sandbox | Company Azure subscription, dummy sites, dummy photos, Foundry test deployment |
+| 1. Field pilot | One site, Entra on, webhook into a Dataverse test table |
+| 2. EHS mapping | `GET /api/schema` + sample rows, map fields, Injury confirm tested |
+| 3. Production | Watermark pull + webhook, Key Vault, backup of `data/`, spend cap on Foundry |
+| 4. Optional | Teams agent for office reporters only |
 
-## 10. What the company still owns
+Pilot success: a worker files from a phone, the draft looks right, the same row appears in EHS within minutes, and Admin → Logic can add a field without a new build.
 
-- Who may open `/admin`
-- How long injury records are kept
-- Whether photos are allowed
-- Data processing terms with the model vendor
-- Backup and restore of `data/`
-- Duty to report to regulators — SafetyBot does not do that
+## 10. What the EHS team needs from IT
 
-SafetyBot classifies and drafts. Your safety reporting system stores, investigates, and closes the case.
+- Base URL of the SafetyBot host
+- Rotated bearer key (Key Vault)
+- Webhook secret if they expose an inbound URL
+- `GET /api/schema` dump whenever Logic changes
+- Entra group for who may open `/admin`
+- Foundry deployment name for extract
+
+They do not need the GitHub repo on the factory floor. They need the three routes: health, schema, reports.
+
+More route detail: [api.md](api.md). Architecture: [architecture.md](architecture.md).
